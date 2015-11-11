@@ -71,7 +71,7 @@ use core::mem;
 use core::ops::{Index, IndexMut, Deref};
 use core::ops;
 use core::ptr;
-use core::slice;
+use core::slice::{self, SliceEq};
 
 use borrow::{Cow, IntoCow};
 
@@ -1359,6 +1359,20 @@ array_impls! {
     10 11 12 13 14 15 16 17 18 19
     20 21 22 23 24 25 26 27 28 29
     30 31 32
+}
+
+impl<T> SliceEq for Vec<T> {
+    type Item = T;
+    fn as_slice_eq(&self) -> &[Self::Item] {
+        &self[..]
+    }
+}
+
+impl<'a, T: Clone> SliceEq for Cow<'a, [T]> {
+    type Item = T;
+    fn as_slice_eq(&self) -> &[Self::Item] {
+        &self[..]
+    }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]

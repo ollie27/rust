@@ -104,6 +104,7 @@
 #![feature(core_slice_ext)]
 #![feature(core_str_ext)]
 #![feature(drop_in_place)]
+#![feature(slice_eq)]
 
 #![cfg_attr(stage0, feature(alloc_system))]
 #![cfg_attr(not(stage0), feature(needs_allocator))]

@@ -67,6 +67,7 @@ use core::ops::{CoerceUnsized, Deref, DerefMut};
 use core::ops::{Placer, Boxed, Place, InPlace, BoxPlace};
 use core::ptr::{self, Unique};
 use core::raw::TraitObject;
+use core::slice::SliceEq;
 
 /// A value that represents the heap. This is the default place that the `box`
 /// keyword allocates into when no place is supplied.
@@ -333,6 +334,14 @@ impl<T: ?Sized + PartialEq> PartialEq for Box<T> {
         PartialEq::ne(&**self, &**other)
     }
 }
+
+impl<T> SliceEq for Box<[T]> {
+    type Item = T;
+    fn as_slice_eq(&self) -> &[Self::Item] {
+        &self[..]
+    }
+}
+
 #[stable(feature = "rust1", since = "1.0.0")]
 impl<T: ?Sized + PartialOrd> PartialOrd for Box<T> {
     #[inline]

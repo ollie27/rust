@@ -55,6 +55,7 @@
 #![feature(ptr_as_ref)]
 #![feature(ref_slice)]
 #![feature(slice_bytes)]
+#![feature(slice_eq)]
 #![feature(slice_patterns)]
 #![feature(staged_api)]
 #![feature(step_by)]

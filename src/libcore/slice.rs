@@ -1562,6 +1562,59 @@ impl<A, B> PartialEq<[B]> for [A] where A: PartialEq<B> {
 #[stable(feature = "rust1", since = "1.0.0")]
 impl<T: Eq> Eq for [T] {}
 
+/// Thing for stuff
+#[unstable(feature = "slice_eq")]
+pub trait SliceEq {
+    /// thing
+    #[unstable(feature = "slice_eq")]
+    type Item;
+    /// stuff
+    #[unstable(feature = "slice_eq")]
+    fn as_slice_eq(&self) -> &[Self::Item];
+}
+
+impl<'a, T> SliceEq for &'a [T] {
+    type Item = T;
+    fn as_slice_eq(&self) -> &[Self::Item] {
+        *self
+    }
+}
+
+impl<'a, T> SliceEq for &'a mut [T] {
+    type Item = T;
+    fn as_slice_eq(&self) -> &[Self::Item] {
+        *self
+    }
+}
+
+impl<U: SliceEq<Item=B>, A: PartialEq<B>, B> PartialEq<U> for [A] {
+    fn eq(&self, other: &U) -> bool {
+        self == other.as_slice_eq()
+    }
+    fn ne(&self, other: &U) -> bool {
+        self != other.as_slice_eq()
+    }
+}
+
+impl<T: SliceEq<Item=A>, A: PartialEq<B>, B> PartialEq<[B]> for T {
+    fn eq(&self, other: &[B]) -> bool {
+        self.as_slice_eq() == other
+    }
+    fn ne(&self, other: &[B]) -> bool {
+        self.as_slice_eq() != other
+    }
+}
+
+//// NEEDS TRAIT SPECIALIZATION OR SOMETHING
+//impl<T: SliceEq<Item=A>, U: SliceEq<Item=B>, A: PartialEq<B>, B> PartialEq<U> for T {
+//    fn eq(&self, other: &U) -> bool {
+//        self.as_slice_eq() == other.as_slice_eq()
+//    }
+//    fn ne(&self, other: &U) -> bool {
+//        self.as_slice_eq() != other.as_slice_eq()
+//    }
+//}
+
 #[stable(feature = "rust1", since = "1.0.0")]
 impl<T: Ord> Ord for [T] {
     fn cmp(&self, other: &[T]) -> Ordering {
