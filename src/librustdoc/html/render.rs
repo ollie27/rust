@@ -1656,7 +1656,7 @@ fn plain_summary_line(s: Option<&str>) -> String {
 }
 
 fn document(w: &mut fmt::Formatter, cx: &Context, item: &clean::Item) -> fmt::Result {
-    if let Some(s) = short_stability(item, cx, true) {
+    if let Some(s) = short_stability(item, cx) {
         try!(write!(w, "<div class='stability'>{}</div>", s));
     }
     if let Some(s) = item.doc_value() {
@@ -1692,20 +1692,22 @@ fn item_module(w: &mut fmt::Formatter, cx: &Context,
         }
     }
 
+    fn reorder_stability(i: &clean::Item) -> u8 {
+        match (i.is_deprecated(), i.is_unstable()) {
+            (false, false) => 0,
+            (true, false) => 1,
+            (false, true) => 2,
+            (true, true) => 3,
+        }
+    }
+
     fn cmp(i1: &clean::Item, i2: &clean::Item, idx1: usize, idx2: usize) -> Ordering {
         let ty1 = shortty(i1);
         let ty2 = shortty(i2);
         if ty1 != ty2 {
             return (reorder(ty1), idx1).cmp(&(reorder(ty2), idx2))
         }
-        let s1 = i1.stability.as_ref().map(|s| s.level);
-        let s2 = i2.stability.as_ref().map(|s| s.level);
-        match (s1, s2) {
-            (Some(stability::Unstable), Some(stability::Stable)) => return Ordering::Greater,
-            (Some(stability::Stable), Some(stability::Unstable)) => return Ordering::Less,
-            _ => {}
-        }
-        i1.name.cmp(&i2.name)
+        (reorder_stability(i1), &i1.name).cmp(&(reorder_stability(i2), &i2.name))
     }
 
     indices.sort_by(|&i1, &i2| cmp(&items[i1], &items[i2], i1, i2));
@@ -1774,11 +1776,6 @@ fn item_module(w: &mut fmt::Formatter, cx: &Context,
 
             _ => {
                 if myitem.name.is_none() { continue }
-                let stab_docs = if let Some(s) = short_stability(myitem, cx, false) {
-                    format!("[{}]", s)
-                } else {
-                    String::new()
-                };
                 try!(write!(w, "
                     <tr class='{stab} module-item'>
                         <td><a class='{class}' href='{href}'
@@ -1789,7 +1786,7 @@ fn item_module(w: &mut fmt::Formatter, cx: &Context,
                     </tr>
                 ",
                 name = *myitem.name.as_ref().unwrap(),
-                stab_docs = stab_docs,
+                stab_docs = label_stability(myitem),
                 docs = Markdown(&shorter(myitem.doc_value())),
                 class = shortty(myitem),
                 stab = myitem.stability_class(),
@@ -1802,52 +1799,66 @@ fn item_module(w: &mut fmt::Formatter, cx: &Context,
     write!(w, "</table>")
 }
 
-fn short_stability(item: &clean::Item, cx: &Context, show_reason: bool) -> Option<String> {
+fn label_stability(item: &clean::Item) -> String {
+    let mut result = String::new();
+    if item.is_deprecated() {
+        result.push_str("[<em class='stab deprecated'>Deprecated</em>]");
+    }
+    if item.is_unstable() {
+        result.push_str("[<em class='stab unstable'>Unstable</em>]");
+    }
+    result
+}
+
+fn short_stability(item: &clean::Item, cx: &Context) -> Option<String> {
     let mut result = item.stability.as_ref().and_then(|stab| {
-        let reason = if show_reason && !stab.reason.is_empty() {
+        let reason = if !stab.reason.is_empty() {
             format!(": {}", stab.reason)
         } else {
             String::new()
         };
-        let text = if !stab.deprecated_since.is_empty() {
-            let since = if show_reason {
-                format!(" since {}", Escape(&stab.deprecated_since))
-            } else {
-                String::new()
+
+        let stability = if stab.level == stability::Unstable {
+            let unstable_extra = match (!stab.feature.is_empty(), &cx.issue_tracker_base_url, stab.issue) {
+                (true, &Some(ref tracker_url), Some(issue_no)) if issue_no > 0 =>
+                    format!(" (<code>{}</code> <a href=\"{}{}\">#{}</a>)",
+                            Escape(&stab.feature), tracker_url, issue_no, issue_no),
+                (false, &Some(ref tracker_url), Some(issue_no)) if issue_no > 0 =>
+                    format!(" (<a href=\"{}{}\">#{}</a>)", Escape(&tracker_url), issue_no,
+                            issue_no),
+                (true, _, _) =>
+                    format!(" (<code>{}</code>)", Escape(&stab.feature)),
+                _ => String::new(),
             };
-            format!("Deprecated{}{}", since, Markdown(&reason))
-        } else if stab.level == stability::Unstable {
-            let unstable_extra = if show_reason {
-                match (!stab.feature.is_empty(), &cx.issue_tracker_base_url, stab.issue) {
-                    (true, &Some(ref tracker_url), Some(issue_no)) if issue_no > 0 =>
-                        format!(" (<code>{}</code> <a href=\"{}{}\">#{}</a>)",
-                                Escape(&stab.feature), tracker_url, issue_no, issue_no),
-                    (false, &Some(ref tracker_url), Some(issue_no)) if issue_no > 0 =>
-                        format!(" (<a href=\"{}{}\">#{}</a>)", Escape(&tracker_url), issue_no,
-                                issue_no),
-                    (true, _, _) =>
-                        format!(" (<code>{}</code>)", Escape(&stab.feature)),
-                    _ => String::new(),
-                }
-            } else {
-                String::new()
-            };
-            format!("Unstable{}{}", unstable_extra, Markdown(&reason))
+            Some(format!("Unstable{}", unstable_extra))
         } else {
-            return None
+            None
         };
-        Some(format!("<em class='stab {}'>{}</em>",
-                     item.stability_class(), text))
+
+        if !stab.deprecated_since.is_empty() {
+            let mut text = format!("<em class='stab deprecated'>Deprecated since {}{}</em>",
+                    Escape(&stab.deprecated_since), Markdown(&reason));
+
+            if let Some(s) = stability {
+                text.push_str(" <em class='stab unstable'>");
+                text.push_str(&s);
+                text.push_str("</em>");
+            }
+
+            Some(text)
+        } else {
+            stability.map(|s| format!("<em class='stab unstable'>{}{}</em>", s, Markdown(&reason)))
+        }
     });
 
     if result.is_none() {
         result = item.deprecation.as_ref().and_then(|depr| {
-            let note = if show_reason && !depr.note.is_empty() {
+            let note = if !depr.note.is_empty() {
                 format!(": {}", depr.note)
             } else {
                 String::new()
             };
-            let since = if show_reason && !depr.since.is_empty() {
+            let since = if !depr.since.is_empty() {
                 format!(" since {}", Escape(&depr.since))
             } else {
                 String::new()

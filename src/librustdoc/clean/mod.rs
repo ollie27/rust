@@ -324,19 +324,36 @@ impl Item {
         match self.inner { FunctionItem(..) => true, _ => false }
     }
 
-    pub fn stability_class(&self) -> String {
+    pub fn stability_class(&self) -> &'static str {
         match self.stability {
             Some(ref s) => {
-                let mut base = match s.level {
-                    stability::Unstable => "unstable".to_string(),
-                    stability::Stable => String::new(),
-                };
-                if !s.deprecated_since.is_empty() {
-                    base.push_str(" deprecated");
+                match (s.level, s.deprecated_since.is_empty()) {
+                    (stability::Unstable, false) => "unstable deprecated",
+                    (stability::Unstable, true) => "unstable",
+                    (stability::Stable, false) => "deprecated",
+                    (stability::Stable, true) => "",
                 }
-                base
             }
-            _ => String::new(),
+            None => {
+                match self.deprecation {
+                    Some(_) => "deprecated",
+                    None => "",
+                }
+            }
+        }
+    }
+
+    pub fn is_unstable(&self) -> bool {
+        match self.stability {
+            Some(ref s) => s.level == stability::Unstable,
+            None => false,
+        }
+    }
+
+    pub fn is_deprecated(&self) -> bool {
+        match self.stability {
+            Some(ref s) => !s.deprecated_since.is_empty(),
+            None => self.deprecation.is_some(),
         }
     }
 }
