@@ -2066,6 +2066,11 @@ fn item_trait(w: &mut fmt::Formatter, cx: &Context, it: &clean::Item,
         Some(implementors) => {
             for i in implementors {
                 try!(writeln!(w, "<li><code>{}</code></li>", i.impl_));
+                for item in &i.impl_.items {
+                    if let Some(s) = short_stability(item, cx) {
+                        try!(writeln!(w, "{}", s));
+                    }
+                }
             }
         }
         None => {}
@@ -2543,6 +2548,9 @@ fn render_impl(w: &mut fmt::Formatter, cx: &Context, i: &Impl, link: AssocItemLi
                 document(w, cx, item)
             }
         } else {
+            if let Some(s)  = short_stability(item, cx) {
+                try!(write!(w, "{}", s));
+            }
             Ok(())
         };
 
@@ -2555,8 +2563,18 @@ fn render_impl(w: &mut fmt::Formatter, cx: &Context, i: &Impl, link: AssocItemLi
         }
     }
 
+    let mut unstable_depr = Vec::new();
+
     try!(write!(w, "<div class='impl-items'>"));
     for trait_item in &i.impl_.items {
+        if !trait_item.is_unstable() && !trait_item.is_deprecated() {
+            try!(doctraititem(w, cx, trait_item, link, render_header));
+        } else {
+            unstable_depr.push(trait_item);
+        }
+    }
+
+    for trait_item in unstable_depr {
         try!(doctraititem(w, cx, trait_item, link, render_header));
     }
 
@@ -2566,6 +2584,7 @@ fn render_impl(w: &mut fmt::Formatter, cx: &Context, i: &Impl, link: AssocItemLi
                             t: &clean::Trait,
                               i: &clean::Impl,
                               render_static: bool) -> fmt::Result {
+        let mut unstable_depr = Vec::new();
         for trait_item in &t.items {
             let n = trait_item.name.clone();
             match i.items.iter().find(|m| { m.name == n }) {
@@ -2573,6 +2592,13 @@ fn render_impl(w: &mut fmt::Formatter, cx: &Context, i: &Impl, link: AssocItemLi
                 None => {}
             }
 
+            if !trait_item.is_unstable() && !trait_item.is_deprecated() {
+                try!(doctraititem(w, cx, trait_item, AssocItemLink::GotoSource(did), render_static));
+            } else {
+                unstable_depr.push(trait_item);
+            }
+        }
+        for trait_item in unstable_depr {
             try!(doctraititem(w, cx, trait_item, AssocItemLink::GotoSource(did), render_static));
         }
         Ok(())
