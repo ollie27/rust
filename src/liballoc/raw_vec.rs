@@ -155,6 +155,27 @@ impl<T> RawVec<T> {
         }
     }
 
+    fn real_cap(&self) -> usize {
+        let elem_size = mem::size_of::<T>();
+        let align = mem::align_of::<T>();
+        if elem_size == 0 {
+            !0
+        } else {
+            heap::usable_size(self.cap * elem_size, align) / elem_size
+        }
+    }
+
+    fn min_new_cap(&self) -> usize {
+        let elem_size = mem::size_of::<T>();
+        assert!(elem_size > 0);
+        // skip to 4 because tiny Vec's are dumb; but not if that would cause overflow
+        if elem_size > (!0) / 8 {
+            1
+        } else {
+            4
+        }
+    }
+
     /// Doubles the size of the type's backing allocation. This is common enough
     /// to want to do that it's easiest to just have a dedicated method. Slightly
     /// more efficient logic can be provided for this than the general case.
@@ -208,12 +229,7 @@ impl<T> RawVec<T> {
             let align = mem::align_of::<T>();
 
             let (new_cap, ptr) = if self.cap == 0 {
-                // skip to 4 because tiny Vec's are dumb; but not if that would cause overflow
-                let new_cap = if elem_size > (!0) / 8 {
-                    1
-                } else {
-                    4
-                };
+                let new_cap = self.min_new_cap();
                 let ptr = heap::allocate(new_cap * elem_size, align);
                 (new_cap, ptr)
             } else {
@@ -274,6 +290,7 @@ impl<T> RawVec<T> {
                                                 align);
             if size >= new_alloc_size {
                 // We can't directly divide `size`.
+                // WHY ON EARTH NOT????????????
                 self.cap = new_cap;
             }
             size >= new_alloc_size
@@ -305,10 +322,10 @@ impl<T> RawVec<T> {
             let elem_size = mem::size_of::<T>();
             let align = mem::align_of::<T>();
 
-            // NOTE: we don't early branch on ZSTs here because we want this
-            // to actually catch "asking for more than usize::MAX" in that case.
-            // If we make it past the first branch then we are guaranteed to
-            // panic.
+            if elem_size == 0 {
+                assert!(used_cap.checked_add(needed_extra_cap).is_some(), "capacity overflow");
+                return;
+            }
 
             // Don't actually need any more capacity.
             // Wrapping in case they gave a bad `used_cap`.
@@ -322,6 +339,11 @@ impl<T> RawVec<T> {
             alloc_guard(new_alloc_size);
 
             let ptr = if self.cap == 0 {
+                let min_new_cap = self.min_new_cap();
+                if new_cap < min_new_cap {
+                    new_cap = min_new_cap;
+                    new_alloc_size = min_new_cap * elem_size;
+                }
                 heap::allocate(new_alloc_size, align)
             } else {
                 heap::reallocate(self.ptr() as *mut _,
@@ -345,14 +367,26 @@ impl<T> RawVec<T> {
     /// Returns `(new_capacity, new_alloc_size)`.
     fn amortized_new_size(&self, used_cap: usize, needed_extra_cap: usize) -> (usize, usize) {
         let elem_size = mem::size_of::<T>();
-        // Nothing we can really do about these checks :(
-        let required_cap = used_cap.checked_add(needed_extra_cap)
-                                   .expect("capacity overflow");
-        // Cannot overflow, because `cap <= isize::MAX`, and type of `cap` is `usize`.
-        let double_cap = self.cap * 2;
-        // `double_cap` guarantees exponential growth.
-        let new_cap = cmp::max(double_cap, required_cap);
-        let new_alloc_size = new_cap.checked_mul(elem_size).expect("capacity overflow");
+        if mem::size_of::<usize>() < 8 {
+            // Nothing we can really do about these checks :(
+            assert!(needed_extra_cap <= ::core::isize::MAX, "capacity overflow");
+            let required_cap = (used_cap as isize).checked_add(needed_extra_cap as isize)
+                                                  .expect("capacity overflow") as usize;
+            // Cannot overflow, because `cap <= isize::MAX`, and type of `cap` is `usize`.
+            let double_cap = (self.cap as isize).checked_mul(2).unwrap_or(::core::isize::MAX) as usize;
+            // `double_cap` guarantees exponential growth.
+            let new_cap = cmp::max(double_cap, required_cap);
+            let new_alloc_size = (new_cap as isize).checked_mul(elem_size as isize).expect("capacity overflow") as usize;
+        } else {
+            // Nothing we can really do about these checks :(
+            let required_cap = used_cap.checked_add(needed_extra_cap)
+                                       .expect("capacity overflow");
+            // Cannot overflow, because `cap <= isize::MAX`, and type of `cap` is `usize`.
+            let double_cap = self.cap * 2;
+            // `double_cap` guarantees exponential growth.
+            let new_cap = cmp::max(double_cap, required_cap);
+            let new_alloc_size = new_cap.checked_mul(elem_size).expect("capacity overflow");
+        }
         (new_cap, new_alloc_size)
     }
 
@@ -405,10 +439,10 @@ impl<T> RawVec<T> {
             let elem_size = mem::size_of::<T>();
             let align = mem::align_of::<T>();
 
-            // NOTE: we don't early branch on ZSTs here because we want this
-            // to actually catch "asking for more than usize::MAX" in that case.
-            // If we make it past the first branch then we are guaranteed to
-            // panic.
+            if elem_size == 0 {
+                assert!(used_cap.checked_add(needed_extra_cap).is_some(), "capacity overflow");
+                return;
+            }
 
             // Don't actually need any more capacity.
             // Wrapping in case they give a bad `used_cap`
@@ -418,9 +452,14 @@ impl<T> RawVec<T> {
 
             let (new_cap, new_alloc_size) = self.amortized_new_size(used_cap, needed_extra_cap);
             // FIXME: may crash and burn on over-reserve
-            alloc_guard(new_alloc_size);
+            // alloc_guard(new_alloc_size);
 
             let ptr = if self.cap == 0 {
+                let min_new_cap = self.min_new_cap();
+                if new_cap < min_new_cap {
+                    new_cap = min_new_cap;
+                    new_alloc_size = min_new_cap * elem_size;
+                }
                 heap::allocate(new_alloc_size, align)
             } else {
                 heap::reallocate(self.ptr() as *mut _,
@@ -436,6 +475,19 @@ impl<T> RawVec<T> {
 
             self.ptr = Unique::new(ptr as *mut _);
             self.cap = new_cap;
+        }
+    }
+
+    #[inline(never)]
+    #[cold]
+    fn reserve_one(&mut self) {
+        let elem_size = mem::size_of::<T>();
+        let align = mem::align_of::<T>();
+        let real_cap = heap::usable_size(self.cap() * elem_size, align) / elem_size;
+        if real_cap > self.cap() {
+            self.cap = real_cap;
+        } else {
+            self.reserve(self.cap, 1)
         }
     }
 
@@ -461,10 +513,10 @@ impl<T> RawVec<T> {
             let elem_size = mem::size_of::<T>();
             let align = mem::align_of::<T>();
 
-            // NOTE: we don't early branch on ZSTs here because we want this
-            // to actually catch "asking for more than usize::MAX" in that case.
-            // If we make it past the first branch then we are guaranteed to
-            // panic.
+            if elem_size == 0 {
+                assert!(used_cap.checked_add(needed_extra_cap).is_some(), "capacity overflow");
+                return false;
+            }
 
             // Don't actually need any more capacity. If the current `cap` is 0, we can't
             // reallocate in place.
@@ -473,16 +525,16 @@ impl<T> RawVec<T> {
                 return false;
             }
 
-            let (_, new_alloc_size) = self.amortized_new_size(used_cap, needed_extra_cap);
+            let (new_cap, new_alloc_size) = self.amortized_new_size(used_cap, needed_extra_cap);
             // FIXME: may crash and burn on over-reserve
-            alloc_guard(new_alloc_size);
+            // alloc_guard(new_alloc_size);
 
             let size = heap::reallocate_inplace(self.ptr() as *mut _,
                                                 self.cap * elem_size,
                                                 new_alloc_size,
                                                 align);
             if size >= new_alloc_size {
-                self.cap = new_alloc_size / elem_size;
+                self.cap = new_cap;
             }
             size >= new_alloc_size
         }
