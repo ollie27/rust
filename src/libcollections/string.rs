@@ -218,7 +218,7 @@ use boxed::Box;
 /// }
 /// ```
 ///
-/// This will output the following:
+/// This might output the following:
 ///
 /// ```text
 /// 0
@@ -825,7 +825,7 @@ impl String {
     /// ```
     /// let s = String::with_capacity(10);
     ///
-    /// assert!(s.capacity() >= 10);
+    /// assert_eq!(10, s.capacity());
     /// ```
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
@@ -930,7 +930,10 @@ impl String {
         self.vec.reserve_exact(additional)
     }
 
-    /// Shrinks the capacity of this `String` to match its length.
+    /// Shrinks the capacity of this `String` as much as possible.
+    ///
+    /// It will drop down as close as possible to the length but the allocator
+    /// may still inform the `String` that there is space for a few more bytes.
     ///
     /// # Examples
     ///
@@ -940,10 +943,10 @@ impl String {
     /// let mut s = String::from("foo");
     ///
     /// s.reserve(100);
-    /// assert!(s.capacity() >= 100);
+    /// assert!(s.capacity() >= 103);
     ///
     /// s.shrink_to_fit();
-    /// assert_eq!(3, s.capacity());
+    /// assert!(s.capacity() >= 3);
     /// ```
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
