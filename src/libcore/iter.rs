@@ -296,6 +296,55 @@
 //! This will print the numbers `0` through `4`, each on their own line.
 //!
 //! [`take()`]: trait.Iterator.html#method.take
+//!
+//! # Optimization
+//!
+//! The only method you absolutely need to implement for `Iterator` is `next()` however there
+//! are four methods you should always consider overriding; `size_hint()`, `count()`, `last()` and `nth()`.
+//! These can be made more efficient in a lot cases. For example we can implement them on `Counter`:
+//!
+//! ```
+//! # // First, the struct:
+//!
+//! # /// An iterator which counts from one to five
+//! # struct Counter {
+//! #     count: usize,
+//! # }
+//!
+//! # // we want our count to start at one, so let's add a new() method to help.
+//! # // This isn't strictly necessary, but is convenient. Note that we start
+//! # // `count` at zero, we'll see why in `next()`'s implementation below.
+//! # impl Counter {
+//! #     fn new() -> Counter {
+//! #         Counter { count: 0 }
+//! #     }
+//! # }
+//!
+//! # // Then, we implement `Iterator` for our `Counter`:
+//!
+//! # impl Iterator for Counter {
+//! #     // we will be counting with usize
+//! #     type Item = usize;
+//!
+//! #     // next() is the only required method
+//! #     fn next(&mut self) -> Option<usize> {
+//! #         // increment our count. This is why we started at zero.
+//! #         self.count += 1;
+//!
+//! #         // check to see if we've finished counting or not.
+//! #         if self.count < 6 {
+//! #             Some(self.count)
+//! #         } else {
+//! #             None
+//! #         }
+//! #     }
+//!
+//! fn size_hint(&self) -> (usize, Option<usize>) {
+//!     let remaining = 5 - self.count;
+//!     (remaining, Some(remaining))
+//! }
+//! # }
+
 
 #![stable(feature = "rust1", since = "1.0.0")]
 
