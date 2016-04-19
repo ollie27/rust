@@ -48,8 +48,10 @@ fn main() {
     let docs = env::args().nth(1).unwrap();
     let docs = env::current_dir().unwrap().join(docs);
     let mut url = Url::from_file_path(&docs).unwrap();
+    let mut root_url = url.clone();
+    root_url.path_mut().unwrap().push(String::from("index.html"));
     let mut errors = false;
-    walk(&mut HashMap::new(), &docs, &docs, &mut url, &mut errors);
+    walk(&mut HashMap::new(), &docs, &docs, &mut url, &mut root_url, &mut errors);
     if errors {
         panic!("found some broken links");
     }
@@ -81,7 +83,7 @@ impl FileEntry {
                 errors: &mut bool)
 {
         if self.ids.is_empty() {
-            with_attrs_in_source(contents, " id", |fragment, i| {
+            with_attrs_in_source(contents, &[" id"], |fragment, i| {
                 let frag = fragment.trim_left_matches("#").to_owned();
                 if !self.ids.insert(frag) {
                     *errors = true;
@@ -97,6 +99,7 @@ fn walk(cache: &mut Cache,
         root: &Path,
         dir: &Path,
         url: &mut Url,
+        root_url: &mut Url,
         errors: &mut bool)
 {
     for entry in t!(dir.read_dir()).map(|e| t!(e)) {
@@ -104,9 +107,9 @@ fn walk(cache: &mut Cache,
         let kind = t!(entry.file_type());
         url.path_mut().unwrap().push(entry.file_name().into_string().unwrap());
         if kind.is_dir() {
-            walk(cache, root, &path, url, errors);
+            walk(cache, root, &path, url, root_url, errors);
         } else {
-            let pretty_path = check(cache, root, &path, url, errors);
+            let pretty_path = check(cache, root, &path, url, root_url, errors);
             if let Some(pretty_path) = pretty_path {
                 let entry = cache.get_mut(&pretty_path).unwrap();
                 // we don't need the source anymore,
@@ -122,11 +125,17 @@ fn check(cache: &mut Cache,
          root: &Path,
          file: &Path,
          base: &Url,
+         root_url: &Url,
          errors: &mut bool) -> Option<PathBuf>
 {
     // ignore js files as they are not prone to errors as the rest of the
     // documentation is and they otherwise bring up false positives.
-    if file.extension().and_then(|s| s.to_str()) == Some("js") {
+    if file.extension().and_then(|s| s.to_str()) != Some("html") {
+        return None;
+    }
+
+    let is_js = file.extension().and_then(|s| s.to_str()) == Some("js");
+    if is_js && file.to_str().map(|f| f.contains("implementors")) != Some(true) {
         return None;
     }
 
@@ -148,24 +157,16 @@ fn check(cache: &mut Cache,
         return None;
     }
 
-    if file.ends_with("std/sys/ext/index.html") {
+    if file.to_str().unwrap().contains("style") {
         return None;
-    }
-
-    if let Some(file) = file.to_str() {
-        // FIXME(#31948)
-        if file.contains("ParseFloatError") {
-            return None;
-        }
-        // weird reexports, but this module is on its way out, so chalk it up to
-        // "rustdoc weirdness" and move on from there
-        if file.contains("scoped_tls") {
-            return None;
-        }
     }
 
     let mut parser = UrlParser::new();
     parser.base_url(base);
+    let mut parser_js = UrlParser::new();
+    parser_js.base_url(root_url);
+
+    // println!("{:?} {:?}", base, root_url);
 
     let res = load_file(cache, root, PathBuf::from(file), SkipRedirect);
     let (pretty_file, contents) = match res {
@@ -178,11 +179,16 @@ fn check(cache: &mut Cache,
     }
 
     // Search for anything that's the regex 'href[ ]*=[ ]*".*?"'
-    with_attrs_in_source(&contents, " href", |url, i| {
+    with_attrs_in_source(&contents, &[" href", " src"], |url, i| {
         // Once we've plucked out the URL, parse it using our base url and
         // then try to extract a file path. If either of these fail then we
         // just keep going.
-        let (parsed_url, path) = match url_to_file_path(&parser, url) {
+        let parser = if is_js {
+            &parser_js
+        } else {
+            &parser
+        };
+        let (parsed_url, path) = match url_to_file_path(parser, &url) {
             Some((url, path)) => (url, PathBuf::from(path)),
             None => return,
         };
@@ -204,7 +210,8 @@ fn check(cache: &mut Cache,
                 Ok(res) => res,
                 Err(LoadError::IOError(err)) => panic!(format!("{}", err)),
                 Err(LoadError::BrokenRedirect(target, _)) => {
-                    print!("{}:{}: broken redirect to {}",
+                    *errors = true;
+                    println!("{}:{}: broken redirect to {}",
                            pretty_file.display(), i + 1, target.display());
                     return;
                 }
@@ -223,11 +230,11 @@ fn check(cache: &mut Cache,
                 entry.parse_ids(&pretty_path, &contents, errors);
 
                 if !entry.ids.contains(fragment) {
-                    *errors = true;
-                    print!("{}:{}: broken link fragment  ",
-                           pretty_file.display(), i + 1);
-                    println!("`#{}` pointing to `{}`",
-                             fragment, pretty_path.display());
+                    // *errors = true;
+                    // print!("{}:{}: broken link fragment  ",
+                    //        pretty_file.display(), i + 1);
+                    // println!("`#{}` pointing to `{}`",
+                    //          fragment, pretty_path.display());
                 };
             }
         } else {
@@ -266,7 +273,11 @@ fn load_file(cache: &mut Cache,
             let maybe = maybe_redirect(&contents);
             if maybe.is_some() {
                 if let SkipRedirect = redirect {
-                    return Err(LoadError::IsRedirect);
+                    entry.insert(FileEntry {
+                        source: contents.clone(),
+                        ids: HashSet::new(),
+                    });
+                    return Ok((pretty_file, contents));
                 }
             } else {
                 entry.insert(FileEntry {
@@ -313,38 +324,40 @@ fn url_to_file_path(parser: &UrlParser, url: &str) -> Option<(Url, PathBuf)> {
 }
 
 fn with_attrs_in_source<F: FnMut(&str, usize)>(contents: &str,
-                                               attr: &str,
+                                               attrs: &[&str],
                                                mut f: F)
 {
     for (i, mut line) in contents.lines().enumerate() {
-        while let Some(j) = line.find(attr) {
-            let rest = &line[j + attr.len() ..];
-            line = rest;
-            let pos_equals = match rest.find("=") {
-                Some(i) => i,
-                None => continue,
-            };
-            if rest[..pos_equals].trim_left_matches(" ") != "" {
-                continue
+        for attr in attrs {
+            while let Some(j) = line.find(attr) {
+                let rest = &line[j + attr.len() ..];
+                line = rest;
+                let pos_equals = match rest.find("=") {
+                    Some(i) => i,
+                    None => continue,
+                };
+                if rest[..pos_equals].trim_left_matches(" ") != "" {
+                    continue
+                }
+
+                let rest = &rest[pos_equals + 1..];
+
+                let pos_quote = match rest.find(&['"', '\''][..]) {
+                    Some(i) => i,
+                    None => continue,
+                };
+                let quote_delim = rest.as_bytes()[pos_quote] as char;
+
+                if rest[..pos_quote].trim_left_matches(" ") != "" {
+                    continue
+                }
+                let rest = &rest[pos_quote + 1..];
+                let url = match rest.find(quote_delim) {
+                    Some(i) => &rest[..i],
+                    None => continue,
+                };
+                f(url, i)
             }
-
-            let rest = &rest[pos_equals + 1..];
-
-            let pos_quote = match rest.find(&['"', '\''][..]) {
-                Some(i) => i,
-                None => continue,
-            };
-            let quote_delim = rest.as_bytes()[pos_quote] as char;
-
-            if rest[..pos_quote].trim_left_matches(" ") != "" {
-                continue
-            }
-            let rest = &rest[pos_quote + 1..];
-            let url = match rest.find(quote_delim) {
-                Some(i) => &rest[..i],
-                None => continue,
-            };
-            f(url, i)
         }
     }
 }
