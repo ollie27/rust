@@ -76,8 +76,7 @@ pub fn check(build: &mut Build) {
         // Either can't build or don't want to run jemalloc on these targets
         if target.contains("rumprun") ||
            target.contains("bitrig") ||
-           target.contains("openbsd") ||
-           target.contains("msvc") {
+           target.contains("openbsd") {
             build.config.use_jemalloc = false;
         }
 

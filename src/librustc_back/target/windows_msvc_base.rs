@@ -59,7 +59,7 @@ pub fn opts() -> TargetOptions {
             "/NOLOGO".to_string(),
             "/NXCOMPAT".to_string(),
         ],
-        exe_allocation_crate: "alloc_system".to_string(),
+        exe_allocation_crate: super::maybe_jemalloc(),
 
         .. Default::default()
     }

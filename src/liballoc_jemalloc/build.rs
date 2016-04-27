@@ -38,14 +38,14 @@ fn main() {
     let compiler = gcc::Config::new().get_compiler();
     let ar = build_helper::cc2ar(compiler.path(), &target);
     let cflags = compiler.args().iter().map(|s| s.to_str().unwrap())
-                         .collect::<Vec<_>>().join(" ");
+                         .collect::<Vec<_>>().join(" ").replace("/", "-");
 
     let mut cmd = Command::new("sh");
     cmd.arg(src_dir.join("../jemalloc/configure").to_str().unwrap()
                    .replace("C:\\", "/c/")
                    .replace("\\", "/"))
        .current_dir(&build_dir)
-       .env("CC", compiler.path())
+       .env("CC", "cl")
        .env("EXTRA_CFLAGS", cflags)
        .env("AR", &ar)
        .env("RANLIB", format!("{} s", ar.display()));
@@ -94,10 +94,13 @@ fn main() {
         cmd.arg("--enable-debug");
     }
 
+    // Need this to prevent dllexport on public symbols
+    cmd.arg("--without-export");
+
     // Turn off broken quarantine (see jemalloc/jemalloc#161)
     cmd.arg("--disable-fill");
-    cmd.arg(format!("--host={}", build_helper::gnu_target(&target)));
-    cmd.arg(format!("--build={}", build_helper::gnu_target(&host)));
+    cmd.arg(format!("--host={}", build_helper::gnu_target(&target).replace("win", "mingw")));
+    cmd.arg(format!("--build={}", build_helper::gnu_target(&host).replace("win", "mingw")));
 
     run(&mut cmd);
     run(Command::new("make")
@@ -106,7 +109,7 @@ fn main() {
                 .arg("-j").arg(env::var("NUM_JOBS").unwrap()));
 
     if target.contains("windows") {
-        println!("cargo:rustc-link-lib=static=jemalloc");
+        println!("cargo:rustc-link-lib=static=jemalloc_s");
     } else {
         println!("cargo:rustc-link-lib=static=jemalloc_pic");
     }
