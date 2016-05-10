@@ -34,10 +34,6 @@ macro_rules! tuple_impls {
                 fn eq(&self, other: &($($T,)+)) -> bool {
                     $(self.$idx == other.$idx)&&+
                 }
-                #[inline]
-                fn ne(&self, other: &($($T,)+)) -> bool {
-                    $(self.$idx != other.$idx)||+
-                }
             }
 
             #[stable(feature = "rust1", since = "1.0.0")]

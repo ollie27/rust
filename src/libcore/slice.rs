@@ -1802,10 +1802,6 @@ impl<A, B> PartialEq<[B]> for [A] where A: PartialEq<B> {
     fn eq(&self, other: &[B]) -> bool {
         SlicePartialEq::equal(self, other)
     }
-
-    fn ne(&self, other: &[B]) -> bool {
-        SlicePartialEq::not_equal(self, other)
-    }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
@@ -1829,8 +1825,6 @@ impl<T: PartialOrd> PartialOrd for [T] {
 // intermediate trait for specialization of slice's PartialEq
 trait SlicePartialEq<B> {
     fn equal(&self, other: &[B]) -> bool;
-
-    fn not_equal(&self, other: &[B]) -> bool { !self.equal(other) }
 }
 
 // Generic slice equality

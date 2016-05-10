@@ -1360,8 +1360,6 @@ mod traits {
         fn eq(&self, other: &str) -> bool {
             eq_slice(self, other)
         }
-        #[inline]
-        fn ne(&self, other: &str) -> bool { !(*self).eq(other) }
     }
 
     #[stable(feature = "rust1", since = "1.0.0")]

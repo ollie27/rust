@@ -784,24 +784,6 @@ impl<T: ?Sized + PartialEq> PartialEq for Rc<T> {
     fn eq(&self, other: &Rc<T>) -> bool {
         **self == **other
     }
-
-    /// Inequality for two `Rc`s.
-    ///
-    /// Two `Rc`s are unequal if their inner values are unequal.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    ///
-    /// let five = Rc::new(5);
-    ///
-    /// assert!(five != Rc::new(6));
-    /// ```
-    #[inline(always)]
-    fn ne(&self, other: &Rc<T>) -> bool {
-        **self != **other
-    }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
