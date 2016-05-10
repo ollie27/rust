@@ -78,7 +78,7 @@ pub trait PartialEq<Rhs: ?Sized = Self> {
     fn eq(&self, other: &Rhs) -> bool;
 
     /// This method tests for `!=`.
-    #[inline]
+    #[inline(always)]
     #[stable(feature = "rust1", since = "1.0.0")]
     fn ne(&self, other: &Rhs) -> bool { !self.eq(other) }
 }
