@@ -549,20 +549,12 @@ impl<'a> PartialEq<&'a str> for InternedString {
     fn eq(&self, other: & &'a str) -> bool {
         PartialEq::eq(&self.string[..], *other)
     }
-    #[inline(always)]
-    fn ne(&self, other: & &'a str) -> bool {
-        PartialEq::ne(&self.string[..], *other)
-    }
 }
 
 impl<'a> PartialEq<InternedString> for &'a str {
     #[inline(always)]
     fn eq(&self, other: &InternedString) -> bool {
         PartialEq::eq(*self, &other.string[..])
-    }
-    #[inline(always)]
-    fn ne(&self, other: &InternedString) -> bool {
-        PartialEq::ne(*self, &other.string[..])
     }
 }
 
@@ -571,20 +563,12 @@ impl PartialEq<str> for InternedString {
     fn eq(&self, other: &str) -> bool {
         PartialEq::eq(&self.string[..], other)
     }
-    #[inline(always)]
-    fn ne(&self, other: &str) -> bool {
-        PartialEq::ne(&self.string[..], other)
-    }
 }
 
 impl PartialEq<InternedString> for str {
     #[inline(always)]
     fn eq(&self, other: &InternedString) -> bool {
         PartialEq::eq(self, &other.string[..])
-    }
-    #[inline(always)]
-    fn ne(&self, other: &InternedString) -> bool {
-        PartialEq::ne(self, &other.string[..])
     }
 }
 

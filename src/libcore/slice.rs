@@ -1749,10 +1749,6 @@ impl<A, B> PartialEq<[B]> for [A] where A: PartialEq<B> {
     fn eq(&self, other: &[B]) -> bool {
         SlicePartialEq::equal(self, other)
     }
-
-    fn ne(&self, other: &[B]) -> bool {
-        SlicePartialEq::not_equal(self, other)
-    }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
@@ -1776,7 +1772,6 @@ impl<T: PartialOrd> PartialOrd for [T] {
 // intermediate trait for specialization of slice's PartialEq
 trait SlicePartialEq<B> {
     fn equal(&self, other: &[B]) -> bool;
-    fn not_equal(&self, other: &[B]) -> bool;
 }
 
 // Generic slice equality
@@ -1789,26 +1784,12 @@ impl<A, B> SlicePartialEq<B> for [A]
         }
 
         for i in 0..self.len() {
-            if !self[i].eq(&other[i]) {
+            if self[i] != other[i] {
                 return false;
             }
         }
 
         true
-    }
-
-    default fn not_equal(&self, other: &[B]) -> bool {
-        if self.len() != other.len() {
-            return true;
-        }
-
-        for i in 0..self.len() {
-            if self[i].ne(&other[i]) {
-                return true;
-            }
-        }
-
-        false
     }
 }
 
@@ -1825,10 +1806,6 @@ impl<A> SlicePartialEq<A> for [A]
             memcmp(self.as_ptr() as *const u8,
                    other.as_ptr() as *const u8, size) == 0
         }
-    }
-
-    fn not_equal(&self, other: &[A]) -> bool {
-        !self.equal(other)
     }
 }
 
@@ -1929,4 +1906,3 @@ macro_rules! impl_marker_for {
 
 impl_marker_for!(BytewiseEquality,
                  u8 i8 u16 i16 u32 i32 u64 i64 usize isize char bool);
-

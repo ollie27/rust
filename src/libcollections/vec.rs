@@ -1445,8 +1445,6 @@ macro_rules! __impl_slice_eq1 {
         impl<'a, 'b, A: $Bound, B> PartialEq<$Rhs> for $Lhs where A: PartialEq<B> {
             #[inline]
             fn eq(&self, other: &$Rhs) -> bool { self[..] == other[..] }
-            #[inline]
-            fn ne(&self, other: &$Rhs) -> bool { self[..] != other[..] }
         }
     }
 }

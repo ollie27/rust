@@ -343,10 +343,6 @@ impl<T: ?Sized + PartialEq> PartialEq for Box<T> {
     fn eq(&self, other: &Box<T>) -> bool {
         PartialEq::eq(&**self, &**other)
     }
-    #[inline]
-    fn ne(&self, other: &Box<T>) -> bool {
-        PartialEq::ne(&**self, &**other)
-    }
 }
 #[stable(feature = "rust1", since = "1.0.0")]
 impl<T: ?Sized + PartialOrd> PartialOrd for Box<T> {

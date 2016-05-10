@@ -751,23 +751,6 @@ impl<T: ?Sized + PartialEq> PartialEq for Arc<T> {
     fn eq(&self, other: &Arc<T>) -> bool {
         *(*self) == *(*other)
     }
-
-    /// Inequality for two `Arc<T>`s.
-    ///
-    /// Two `Arc<T>`s are unequal if their inner value are unequal.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::sync::Arc;
-    ///
-    /// let five = Arc::new(5);
-    ///
-    /// five != Arc::new(5);
-    /// ```
-    fn ne(&self, other: &Arc<T>) -> bool {
-        *(*self) != *(*other)
-    }
 }
 #[stable(feature = "rust1", since = "1.0.0")]
 impl<T: ?Sized + PartialOrd> PartialOrd for Arc<T> {

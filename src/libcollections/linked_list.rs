@@ -1011,10 +1011,6 @@ impl<A: PartialEq> PartialEq for LinkedList<A> {
     fn eq(&self, other: &LinkedList<A>) -> bool {
         self.len() == other.len() && self.iter().eq(other.iter())
     }
-
-    fn ne(&self, other: &LinkedList<A>) -> bool {
-        self.len() != other.len() || self.iter().ne(other.iter())
-    }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
