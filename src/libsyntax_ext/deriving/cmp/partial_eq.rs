@@ -43,23 +43,6 @@ pub fn expand_deriving_partial_eq(cx: &mut ExtCtxt,
             Box::new(|cx, span, _, _| cx.expr_bool(span, false)),
             cx, span, substr)
     }
-    fn cs_ne(cx: &mut ExtCtxt, span: Span, substr: &Substructure) -> P<Expr> {
-        cs_fold(
-            true,  // use foldl
-            |cx, span, subexpr, self_f, other_fs| {
-                let other_f = match (other_fs.len(), other_fs.get(0)) {
-                    (1, Some(o_f)) => o_f,
-                    _ => cx.span_bug(span, "not exactly 2 arguments in `derive(PartialEq)`")
-                };
-
-                let eq = cx.expr_binary(span, BinOpKind::Ne, self_f, other_f.clone());
-
-                cx.expr_binary(span, BinOpKind::Or, subexpr, eq)
-            },
-            cx.expr_bool(span, false),
-            Box::new(|cx, span, _, _| cx.expr_bool(span, true)),
-            cx, span, substr)
-    }
 
     macro_rules! md {
         ($name:expr, $f:ident) => { {
@@ -80,14 +63,6 @@ pub fn expand_deriving_partial_eq(cx: &mut ExtCtxt,
         } }
     }
 
-    // avoid defining `ne` if we can
-    // c-like enums, enums without any fields and structs without fields
-    // can safely define only `eq`.
-    let mut methods = vec![md!("eq", cs_eq)];
-    if !is_type_without_fields(item) {
-        methods.push(md!("ne", cs_ne));
-    }
-
     let trait_def = TraitDef {
         span: span,
         attributes: Vec::new(),
@@ -95,7 +70,7 @@ pub fn expand_deriving_partial_eq(cx: &mut ExtCtxt,
         additional_bounds: Vec::new(),
         generics: LifetimeBounds::empty(),
         is_unsafe: false,
-        methods: methods,
+        methods: vec![md!("eq", cs_eq)],
         associated_types: Vec::new(),
     };
     trait_def.expand(cx, mitem, item, push)

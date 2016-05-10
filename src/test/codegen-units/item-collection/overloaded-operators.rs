@@ -46,7 +46,7 @@ impl IndexMut<usize> for Indexable {
 
 
 //~ TRANS_ITEM fn overloaded_operators::{{impl}}[2]::eq[0]
-//~ TRANS_ITEM fn overloaded_operators::{{impl}}[2]::ne[0]
+//~ TRANS_ITEM fn core::cmp[0]::PartialEq[0]::ne[0]<overloaded_operators::Equatable[0], overloaded_operators::Equatable[0]>
 #[derive(PartialEq)]
 pub struct Equatable(u32);
 
