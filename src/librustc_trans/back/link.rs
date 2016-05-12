@@ -155,7 +155,7 @@ pub fn get_ar_prog(sess: &Session) -> String {
 fn command_path(sess: &Session) -> OsString {
     // The compiler's sysroot often has some bundled tools, so add it to the
     // PATH for the child.
-    let mut new_path = sess.host_filesearch(PathKind::All)
+    let mut new_path = sess.target_filesearch(PathKind::All)
                            .get_tools_search_paths();
     if let Some(path) = env::var_os("PATH") {
         new_path.extend(env::split_paths(&path));
