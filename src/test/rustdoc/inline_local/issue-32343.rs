@@ -15,7 +15,9 @@
 #[doc(no_inline)]
 pub use foo::Foo;
 
-// @!has issue_32343/struct.Bar.html
+// @has issue_32343/struct.Bar.html
+// @has - '//a[@href="../issue_32343/bar/struct.Bar.html"]' \
+//     '../issue_32343/bar/struct.Bar.html'
 // @has issue_32343/index.html
 // @has - '//code' 'pub use foo::Bar'
 // @has - '//code/a' 'Bar'

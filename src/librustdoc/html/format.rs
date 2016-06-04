@@ -320,6 +320,7 @@ pub fn href(did: DefId) -> Option<(String, ItemType, Vec<String>)> {
         url.push_str(component);
         url.push_str("/");
     }
+    // FIXME: dedup with item_path
     match shortty {
         ItemType::Module => {
             url.push_str(fqp.last().unwrap());

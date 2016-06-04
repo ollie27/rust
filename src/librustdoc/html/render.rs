@@ -1138,7 +1138,7 @@ impl DocFolder for Cache {
             }
             // link variants to their parent enum because pages aren't emitted
             // for each variant
-            clean::VariantItem(..) if !self.stripped_mod => {
+            clean::VariantItem(..) if !self.stripped_mod => { // FIXME: is this needed?
                 let mut stack = self.stack.clone();
                 stack.pop();
                 self.paths.insert(item.def_id, (stack, ItemType::Enum));
@@ -1255,7 +1255,7 @@ impl Context {
 
         info!("Recursing into {}", self.dst.display());
 
-        mkdir(&self.dst).unwrap();
+        // mkdir(&self.dst).unwrap();
         let ret = f(self);
 
         info!("Recursed; leaving {}", self.dst.display());
@@ -1299,7 +1299,7 @@ impl Context {
     fn item<F>(&mut self, item: clean::Item, mut f: F) -> Result<(), Error> where
         F: FnMut(&mut Context, clean::Item),
     {
-        fn render(w: File, cx: &Context, it: &clean::Item,
+        fn render(mut writer: &mut io::Write, cx: &Context, it: &clean::Item,
                   pushname: bool) -> io::Result<()> {
             // A little unfortunate that this is done like this, but it sure
             // does make formatting *a lot* nicer.
@@ -1307,38 +1307,37 @@ impl Context {
                 *slot.borrow_mut() = cx.current.clone();
             });
 
-            let mut title = cx.current.join("::");
-            if pushname {
-                if !title.is_empty() {
-                    title.push_str("::");
-                }
-                title.push_str(it.name.as_ref().unwrap());
-            }
-            title.push_str(" - Rust");
-            let tyname = shortty(it).to_static_str();
-            let desc = if it.is_crate() {
-                format!("API documentation for the Rust `{}` crate.",
-                        cx.shared.layout.krate)
-            } else {
-                format!("API documentation for the Rust `{}` {} in crate `{}`.",
-                        it.name.as_ref().unwrap(), tyname, cx.shared.layout.krate)
-            };
-            let keywords = make_item_keywords(it);
-            let page = layout::Page {
-                ty: tyname,
-                root_path: &cx.root_path,
-                title: &title,
-                description: &desc,
-                keywords: &keywords,
-            };
-
             reset_ids(true);
 
-            // We have a huge number of calls to write, so try to alleviate some
-            // of the pain by using a buffered writer instead of invoking the
-            // write syscall all the time.
-            let mut writer = BufWriter::new(w);
+            // // We have a huge number of calls to write, so try to alleviate some
+            // // of the pain by using a buffered writer instead of invoking the
+            // // write syscall all the time.
+            // let mut writer = BufWriter::new(w);
             if !cx.render_redirect_pages {
+                let mut title = cx.current.join("::");
+                if pushname {
+                    if !title.is_empty() {
+                        title.push_str("::");
+                    }
+                    title.push_str(it.name.as_ref().unwrap());
+                }
+                title.push_str(" - Rust");
+                let tyname = shortty(it).to_static_str();
+                let desc = if it.is_crate() {
+                    format!("API documentation for the Rust `{}` crate.",
+                            cx.shared.layout.krate)
+                } else {
+                    format!("API documentation for the Rust `{}` {} in crate `{}`.",
+                            it.name.as_ref().unwrap(), tyname, cx.shared.layout.krate)
+                };
+                let keywords = make_item_keywords(it);
+                let page = layout::Page {
+                    ty: tyname,
+                    root_path: &cx.root_path,
+                    title: &title,
+                    description: &desc,
+                    keywords: &keywords,
+                };
                 layout::render(&mut writer, &cx.shared.layout, &page,
                                &Sidebar{ cx: cx, item: it },
                                &Item{ cx: cx, item: it },
@@ -1346,15 +1345,50 @@ impl Context {
             } else {
                 let mut url = repeat("../").take(cx.current.len())
                                            .collect::<String>();
-                if let Some(&(ref names, _)) = cache().paths.get(&it.def_id) {
+                if let Some(&(ref names, ty)) = cache().paths.get(&it.def_id) {
                     for name in &names[..names.len() - 1] {
                         url.push_str(name);
                         url.push_str("/");
                     }
-                    url.push_str(&item_path(it));
+                    // FIXME: dedupe with item_path
+                    use std::fmt::Write;
+                    match ty {
+                        ItemType::Module => write!(url, "{}/index.html", names.last().unwrap()).unwrap(),
+                        _ => write!(url, "{}.{}.html", ty.to_static_str(), names.last().unwrap()).unwrap(),
+                    };
                     layout::redirect(&mut writer, &url)?;
                 }
             }
+            writer.flush()
+        }
+
+        fn render_import_redirect(mut writer: &mut io::Write, cx: &Context, names: &[String],
+                ty: ItemType) -> io::Result<()> {
+            // A little unfortunate that this is done like this, but it sure
+            // does make formatting *a lot* nicer.
+            CURRENT_LOCATION_KEY.with(|slot| {
+                *slot.borrow_mut() = cx.current.clone();
+            });
+
+            reset_ids(true);
+
+            // // We have a huge number of calls to write, so try to alleviate some
+            // // of the pain by using a buffered writer instead of invoking the
+            // // write syscall all the time.
+            // let mut writer = BufWriter::new(w);
+            let mut url = repeat("../").take(cx.current.len())
+                                           .collect::<String>();
+            for name in &names[..names.len() - 1] {
+                url.push_str(name);
+                url.push_str("/");
+            }
+            // FIXME: dedupe with item_path
+            use std::fmt::Write;
+            match ty {
+                ItemType::Module => unreachable!(),
+                _ => write!(url, "{}.{}.html", ty.to_static_str(), names.last().unwrap()).unwrap(),
+            };
+            layout::redirect(&mut writer, &url)?;
             writer.flush()
         }
 
@@ -1377,8 +1411,15 @@ impl Context {
             self.recurse(name, |this| {
                 let item = item.take().unwrap();
                 let joint_dst = this.dst.join("index.html");
-                let dst = try_err!(File::create(&joint_dst), &joint_dst);
-                try_err!(render(dst, this, &item, false), &joint_dst);
+                // let dst = try_err!(File::create(&joint_dst), &joint_dst);
+                // try_err!(render(dst, this, &item, false), &joint_dst);
+                let mut v = Vec::new();
+                render(&mut v, this, &item, false).unwrap();
+                if !v.is_empty() {
+                    try_err!(fs::create_dir_all(&this.dst), &this.dst);
+                    let mut dst = try_err!(File::create(&joint_dst), &joint_dst);
+                    try_err!(dst.write_all(&v), &joint_dst);
+                }
 
                 let m = match item.inner {
                     clean::StrippedItem(box clean::ModuleItem(m)) |
@@ -1387,7 +1428,7 @@ impl Context {
                 };
 
                 // render sidebar-items.js used throughout this module
-                {
+                if !this.render_redirect_pages {
                     let items = this.build_sidebar_items(&m);
                     let js_dst = this.dst.join("sidebar-items.js");
                     let mut js_out = BufWriter::new(try_err!(File::create(&js_dst), &js_dst));
@@ -1403,8 +1444,114 @@ impl Context {
         } else if item.name.is_some() {
             let joint_dst = self.dst.join(&item_path(&item));
 
-            let dst = try_err!(File::create(&joint_dst), &joint_dst);
-            try_err!(render(dst, self, &item, true), &joint_dst);
+            // let dst = try_err!(File::create(&joint_dst), &joint_dst);
+            // try_err!(render(dst, self, &item, true), &joint_dst);
+            let mut v = Vec::new();
+            render(&mut v, self, &item, true).unwrap();
+            if !v.is_empty() {
+                try_err!(fs::create_dir_all(&self.dst), &self.dst);
+                let mut dst = try_err!(File::create(&joint_dst), &joint_dst);
+                try_err!(dst.write_all(&v), &joint_dst);
+            }
+            Ok(())
+        } else if let clean::ImportItem(ref i) = item.inner {
+            println!("{:?}", item);
+            match *i {
+                clean::Import::SimpleImport(ref name, ref src) => {
+                    // FIXME: dedupe with item_path
+                    match cache().paths.get(&src.did.unwrap()) {
+                        Some(&(ref names, ty)) => {
+                            println!("{:?}\n{:?}", names, src.path.segments);
+                            match ty {
+                                ItemType::Module => {
+                                    // FIXME: maybe do modules as well
+                                    // mkdir(&self.dst.join(&name)).unwrap();
+                                    // format!("{}/index.html", name)
+                                    return Ok(()); // modules need to recurse for the link to work and won't even contain all of their items
+                                }
+                                ItemType::Enum => {
+                                    if *names.last().unwrap() != src.path.segments.last().unwrap().name {
+                                        println!("ENUM VARIANT");
+                                        return Ok(());
+                                    }
+                                }
+                                _ => {}
+                            };
+                            let item_path = format!("{}.{}.html", ty.to_static_str(), name);
+
+                            let joint_dst = self.dst.join(item_path);
+
+                            // let dst = try_err!(File::create(&joint_dst), &joint_dst);
+                            // try_err!(render_import_redirect(dst, self, &names, ty), &joint_dst);
+                            let mut v = Vec::new();
+                            render_import_redirect(&mut v, self, &names, ty).unwrap();
+                            if !v.is_empty() {
+                                try_err!(fs::create_dir_all(&self.dst), &self.dst);
+                                let mut dst = try_err!(File::create(&joint_dst), &joint_dst);
+                                try_err!(dst.write_all(&v), &joint_dst);
+                            }
+                        }
+                        None => {} // won't be able to create link anyway
+                    }
+                }
+                clean::Import::ImportList(ref src, ref imports) => {
+                    for &clean::ViewListIdent { ref name, ref rename, source } in imports {
+                        match cache().paths.get(&source.unwrap()) {
+                            Some(&(ref names, ty)) => {
+                                println!("{:?}\n{:?}", names, src.path.segments);
+
+                                if let ItemType::Module = ty {
+                                    // FIXME: maybe do modules as well
+                                    // mkdir(&self.dst.join(&name)).unwrap();
+                                    // format!("{}/index.html", name)
+                                    continue; // modules need to recurse for the link to work and won't even contain all of their items
+                                }
+
+                                if let ItemType::Enum = ty {
+                                    if name == "self" {
+                                        if *names.last().unwrap() != src.path.segments.last().unwrap().name {
+                                            println!("ENUM VARIANT");
+                                            continue;
+                                        }
+                                    } else if names.last().unwrap() != name {
+                                        println!("ENUM VARIANT");
+                                        continue;
+                                    }
+                                }
+
+                                let real_name = match *rename {
+                                    Some(ref n) => n,
+                                    None => {
+                                        if name == "self" {
+                                            assert_eq!(*names.last().unwrap(), src.path.segments.last().unwrap().name);
+                                            names.last().unwrap()
+                                        } else {
+                                            assert_eq!(name, names.last().unwrap());
+                                            name
+                                        }
+                                    }
+                                };
+
+                                let item_path = format!("{}.{}.html", ty.to_static_str(), real_name);
+
+                                let joint_dst = self.dst.join(item_path);
+
+                                // let dst = try_err!(File::create(&joint_dst), &joint_dst);
+                                // try_err!(render_import_redirect(dst, self, &names, ty), &joint_dst);
+                                let mut v = Vec::new();
+                                render_import_redirect(&mut v, self, &names, ty).unwrap();
+                                if !v.is_empty() {
+                                    try_err!(fs::create_dir_all(&self.dst), &self.dst);
+                                    let mut dst = try_err!(File::create(&joint_dst), &joint_dst);
+                                    try_err!(dst.write_all(&v), &joint_dst);
+                                }
+                            }
+                            None => {} // won't be able to create link anyway
+                        }
+                    }
+                }
+                clean::Import::GlobImport(_) => {} // FIXME: maybe do globs as well
+            }
             Ok(())
         } else {
             Ok(())

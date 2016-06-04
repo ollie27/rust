@@ -23,7 +23,9 @@ pub mod a {
 // @has please_inline/b/index.html
 pub mod b {
     // @has - 'pub use foo::'
-    // @!has please_inline/b/struct.Foo.html
+    // @has please_inline/b/struct.Foo.html
+    // @has - '//a[@href="../../please_inline/a/struct.Foo.html"]' \
+    //     '../../please_inline/a/struct.Foo.html'
     #[feature(inline)]
     pub use foo::Foo;
 }
