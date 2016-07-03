@@ -210,11 +210,30 @@ impl<'a> fold::DocFolder for ImplStripper<'a> {
                 {
                     return None;
                 }
+                if imp.trait_.is_none() && !self.retained.contains(&did) {
+                    return None;
+                }
+                if !i.def_id.is_local() && !self.retained.contains(&did) && !imp.for_.is_generic() {
+                    return None;
+                }
             }
             if let Some(did) = imp.trait_.def_id() {
                 if did.is_local() && !self.retained.contains(&did) {
                     return None;
                 }
+            }
+        }
+        if !self.retained.contains(&i.def_id) {
+            match i.inner {
+                clean::StaticItem(..) |
+                clean::StructItem(..) | clean::EnumItem(..) |
+                clean::TraitItem(..) | clean::FunctionItem(..) |
+                clean::VariantItem(..) |
+                clean::ForeignFunctionItem(..) | clean::ForeignStaticItem(..) |
+                clean::ConstantItem(..) => {
+                    return None;
+                }
+                _ => {}
             }
         }
         self.fold_item_recur(i)

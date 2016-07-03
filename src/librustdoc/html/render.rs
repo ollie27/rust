@@ -1340,6 +1340,9 @@ impl Context {
                                &Item{ cx: cx, item: it },
                                cx.shared.css_file_extension.is_some())?;
             } else {
+                if !it.def_id.is_local() {
+                    return Ok(());
+                }
                 let mut url = repeat("../").take(cx.current.len())
                                            .collect::<String>();
                 if let Some(&(ref names, ty)) = cache().paths.get(&it.def_id) {
