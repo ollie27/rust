@@ -13,6 +13,7 @@
 use prelude::v1::*;
 use io::prelude::*;
 
+use char::decode_utf16;
 use cmp;
 use io::{self, Cursor};
 use ptr;
@@ -110,7 +111,7 @@ impl Stdin {
         let mut utf8 = self.utf8.lock().unwrap();
         // Read more if the buffer is empty
         if utf8.position() as usize == utf8.get_ref().len() {
-            let mut utf16 = vec![0u16; 0x1000];
+            let mut utf16 = [0u16; 4096];
             let mut num = 0;
             cvt(unsafe {
                 c::ReadConsoleW(handle,
@@ -119,16 +120,20 @@ impl Stdin {
                                 &mut num,
                                 ptr::null_mut())
             })?;
-            utf16.truncate(num as usize);
-            // FIXME: what to do about this data that has already been read?
-            let data = match String::from_utf16(&utf16) {
-                Ok(utf8) => utf8.into_bytes(),
-                Err(..) => return Err(invalid_encoding()),
-            };
-            *utf8 = Cursor::new(data);
+            utf8.set_position(0);
+            let mut v = utf8.get_mut();
+            v.clear();
+            for r in decode_utf16(utf16[..num as usize].iter().cloned()) {
+                // FIXME: what to do about this data that has already been read?
+                match r {
+                    Ok(c) => {
+                        v.extend(c.encode_utf8());
+                    }
+                    Err(..) => return Err(invalid_encoding()),
+                }
+            }
         }
 
-        // MemReader shouldn't error here since we just filled it
         utf8.read(buf)
     }
 
