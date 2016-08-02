@@ -577,10 +577,6 @@
                         displayPath = item.path + '::';
                         href = rootPath + item.path.replace(/::/g, '/') + '/' +
                                name + '/index.html';
-                    } else if (type === 'static' || type === 'reexport') {
-                        displayPath = item.path + '::';
-                        href = rootPath + item.path.replace(/::/g, '/') +
-                               '/index.html';
                     } else if (type === "primitive") {
                         displayPath = "";
                         href = rootPath + item.path.replace(/::/g, '/') +
@@ -590,12 +586,21 @@
                         href = rootPath + name + '/index.html';
                     } else if (item.parent !== undefined) {
                         var myparent = item.parent;
-                        var anchor = '#' + type + '.' + name;
                         displayPath = item.path + '::' + myparent.name + '::';
-                        href = rootPath + item.path.replace(/::/g, '/') +
-                               '/' + itemTypes[myparent.ty] +
-                               '.' + myparent.name +
-                               '.html' + anchor;
+                        var parentType = itemTypes[myparent.ty];
+                        if (parentType === "variant") {
+                            var anchor = '#' + parentType + '.' + myparent.name + '.' + 'field' + '.' + name;
+                            href = rootPath + item.path.split('::').slice(0, -1).join('/') +
+                                '/' + 'enum' +
+                                '.' + item.path.split('::').pop() +
+                                '.html' + anchor;
+                        } else {
+                            var anchor = '#' + type + '.' + name;
+                            href = rootPath + item.path.replace(/::/g, '/') +
+                                '/' + parentType +
+                                '.' + myparent.name +
+                                '.html' + anchor;
+                        }
                     } else {
                         displayPath = item.path + '::';
                         href = rootPath + item.path.replace(/::/g, '/') +

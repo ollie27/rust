@@ -259,6 +259,7 @@ pub struct Cache {
     stack: Vec<String>,
     parent_stack: Vec<DefId>,
     parent_is_trait_impl: bool,
+    parent_is_tuple_struct: bool,
     search_index: Vec<IndexItem>,
     seen_modules: HashSet<DefId>,
     seen_mod: bool,
@@ -313,7 +314,7 @@ struct IndexItem {
     name: String,
     path: String,
     desc: String,
-    parent: Option<DefId>,
+    parent: Option<(DefId, String)>,
     parent_idx: Option<usize>,
     search_type: Option<IndexItemFunctionType>,
 }
@@ -521,6 +522,7 @@ pub fn run(mut krate: clean::Crate,
         parent_stack: Vec::new(),
         search_index: Vec::new(),
         parent_is_trait_impl: false,
+        parent_is_tuple_struct: false,
         extern_locations: HashMap::new(),
         primitive_locations: HashMap::new(),
         seen_modules: HashSet::new(),
@@ -591,7 +593,7 @@ fn build_index(krate: &clean::Crate, cache: &mut Cache) -> String {
                 name: item.name.clone().unwrap(),
                 path: fqp[..fqp.len() - 1].join("::"),
                 desc: Escape(&shorter(item.doc_value())).to_string(),
-                parent: Some(did),
+                parent: Some((did, fqp.last().unwrap().clone())),
                 parent_idx: None,
                 search_type: get_index_search_type(&item),
             });
@@ -604,19 +606,26 @@ fn build_index(krate: &clean::Crate, cache: &mut Cache) -> String {
     let mut lastpathid = 0usize;
 
     for item in search_index {
-        item.parent_idx = item.parent.map(|nodeid| {
-            if nodeid_to_pathid.contains_key(&nodeid) {
-                *nodeid_to_pathid.get(&nodeid).unwrap()
+        if let Some((nodeid, ref parent_name)) = item.parent {
+            let &(ref fqp, mut short) = paths.get(&nodeid).unwrap();
+            let parent_name = if short == ItemType::Enum && item.ty == ItemType::StructField {
+                short = ItemType::Variant;
+                parent_name
+            } else {
+                fqp.last().unwrap()
+            };
+            item.parent_idx = Some(if nodeid_to_pathid.contains_key(&(nodeid, parent_name, short)) {
+                *nodeid_to_pathid.get(&(nodeid, parent_name, short)).unwrap()
             } else {
                 let pathid = lastpathid;
-                nodeid_to_pathid.insert(nodeid, pathid);
+
+                nodeid_to_pathid.insert((nodeid, parent_name, short), pathid);
                 lastpathid += 1;
 
-                let &(ref fqp, short) = paths.get(&nodeid).unwrap();
-                crate_paths.push(((short as usize), fqp.last().unwrap().clone()).to_json());
+                crate_paths.push(((short as usize), parent_name.clone()).to_json());
                 pathid
-            }
-        });
+            });
+        }
 
         // Omit the parent path if it is same to that of the prior item.
         if lastpath == item.path {
@@ -1038,6 +1047,10 @@ impl DocFolder for Cache {
                     // skip associated items in trait impls
                     ((None, None), false)
                 }
+                clean::StructFieldItem(..) if self.parent_is_tuple_struct => {
+                    // skip struct fields for tuple structs
+                    ((None, None), false)
+                }
                 clean::AssociatedTypeItem(..) |
                 clean::AssociatedConstItem(..) |
                 clean::TyMethodItem(..) |
@@ -1079,6 +1092,7 @@ impl DocFolder for Cache {
                     // which should not be indexed. The crate-item itself is
                     // inserted later on when serializing the search-index.
                     if item.def_id.index != CRATE_DEF_INDEX {
+                        let parent = parent.map(|p| (p, self.stack.last().unwrap().clone()));
                         self.search_index.push(IndexItem {
                             ty: shortty(&item),
                             name: s.to_string(),
@@ -1147,6 +1161,7 @@ impl DocFolder for Cache {
 
         // Maintain the parent stack
         let orig_parent_is_trait_impl = self.parent_is_trait_impl;
+        let orig_parent_is_tuple_struct = self.parent_is_tuple_struct;
         let parent_pushed = match item.inner {
             clean::TraitItem(..) | clean::EnumItem(..) | clean::StructItem(..) => {
                 self.parent_stack.push(item.def_id);
@@ -1174,6 +1189,15 @@ impl DocFolder for Cache {
             }
             _ => false
         };
+        match item.inner {
+            clean::StructItem(clean::Struct { struct_type: doctree::StructType::Tuple, .. } ) |
+            clean::StructItem(clean::Struct { struct_type: doctree::StructType::Newtype, .. } ) => {
+                self.parent_is_tuple_struct = true;
+            }
+            _ => {
+                self.parent_is_tuple_struct = false;
+            }
+        }
 
         // Once we've recursively found all the generics, then hoard off all the
         // implementations elsewhere
@@ -1220,6 +1244,7 @@ impl DocFolder for Cache {
         self.seen_mod = orig_seen_mod;
         self.stripped_mod = orig_stripped_mod;
         self.parent_is_trait_impl = orig_parent_is_trait_impl;
+        self.parent_is_tuple_struct = orig_parent_is_tuple_struct;
         return ret;
     }
 }
