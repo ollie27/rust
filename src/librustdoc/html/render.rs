@@ -259,6 +259,7 @@ pub struct Cache {
     stack: Vec<String>,
     parent_stack: Vec<DefId>,
     parent_is_trait_impl: bool,
+    parent_is_tuple_struct: bool,
     search_index: Vec<IndexItem>,
     seen_modules: HashSet<DefId>,
     seen_mod: bool,
@@ -313,7 +314,7 @@ struct IndexItem {
     name: String,
     path: String,
     desc: String,
-    parent: Option<DefId>,
+    parent: Option<(DefId, Option<String>)>,
     parent_idx: Option<usize>,
     search_type: Option<IndexItemFunctionType>,
 }
@@ -521,6 +522,7 @@ pub fn run(mut krate: clean::Crate,
         parent_stack: Vec::new(),
         search_index: Vec::new(),
         parent_is_trait_impl: false,
+        parent_is_tuple_struct: false,
         extern_locations: HashMap::new(),
         primitive_locations: HashMap::new(),
         seen_modules: HashSet::new(),
@@ -591,12 +593,56 @@ fn build_index(krate: &clean::Crate, cache: &mut Cache) -> String {
                 name: item.name.clone().unwrap(),
                 path: fqp[..fqp.len() - 1].join("::"),
                 desc: Escape(&shorter(item.doc_value())).to_string(),
-                parent: Some(did),
+                parent: Some((did, None)),
                 parent_idx: None,
                 search_type: get_index_search_type(&item),
             });
         }
     }
+
+    // FIXME: needs to sort by full path and then type, the following doesn't work
+    // search_index.sort_by_key(|&IndexItem { ty, ref name, ref path, parent, .. }| {
+    //     (path.clone(), parent, name.clone(), ty as usize)
+    // });
+    search_index.sort_by_key(|&IndexItem { ty, ref name, ref path, ref parent, .. }| {
+        (path.clone(), if let &Some((p, _)) = parent { Some(p) } else { None }, name.clone(), ty as usize)
+    });
+
+    loop { unsafe {
+        let ln = search_index.len();
+        if ln <= 1 {
+            break;
+        }
+
+        // Avoid bounds checks by using raw pointers.
+        let p = search_index.as_mut_ptr();
+        let mut r: usize = 1;
+        let mut w: usize = 1;
+
+        let mut n = 1;
+
+        while r < ln {
+            let p_r = p.offset(r as isize);
+            let p_wm1 = p.offset((w - 1) as isize);
+
+            if (*p_r).path != (*p_wm1).path || (*p_r).parent != (*p_wm1).parent || (*p_r).name != (*p_wm1).name || (*p_r).ty != (*p_wm1).ty {
+                if r != w {
+                    let p_w = p_wm1.offset(1);
+                    ::std::mem::swap(&mut *p_r, &mut *p_w);
+                }
+                w += 1;
+                if n > 1 {
+                    (*p_wm1).desc = format!("<i>({}) results</i>", n);
+                    n = 1;
+                }
+            } else {
+                n += 1;
+            }
+            r += 1;
+        }
+
+        search_index.truncate(w);
+    } break; }
 
     // Reduce `NodeId` in paths into smaller sequential numbers,
     // and prune the paths that do not appear in the index.
@@ -604,19 +650,23 @@ fn build_index(krate: &clean::Crate, cache: &mut Cache) -> String {
     let mut lastpathid = 0usize;
 
     for item in search_index {
-        item.parent_idx = item.parent.map(|nodeid| {
-            if nodeid_to_pathid.contains_key(&nodeid) {
-                *nodeid_to_pathid.get(&nodeid).unwrap()
+        if let Some((nodeid, ref parent_maybe_name)) = item.parent {
+            let (ref fqp, mut short) = paths[&nodeid];
+            let parent_name = if let &Some(ref parent_name) = parent_maybe_name {
+                short = ItemType::Variant;
+                parent_name
             } else {
+                fqp.last().unwrap()
+            };
+            item.parent_idx = Some(*nodeid_to_pathid.entry((nodeid, parent_maybe_name)).or_insert_with(|| {
                 let pathid = lastpathid;
-                nodeid_to_pathid.insert(nodeid, pathid);
+
                 lastpathid += 1;
 
-                let &(ref fqp, short) = paths.get(&nodeid).unwrap();
-                crate_paths.push(((short as usize), fqp.last().unwrap().clone()).to_json());
+                crate_paths.push(((short as usize), parent_name.clone()).to_json());
                 pathid
-            }
-        });
+            }));
+        }
 
         // Omit the parent path if it is same to that of the prior item.
         if lastpath == item.path {
@@ -1038,6 +1088,10 @@ impl DocFolder for Cache {
                     // skip associated items in trait impls
                     ((None, None), false)
                 }
+                clean::StructFieldItem(..) if self.parent_is_tuple_struct => {
+                    // skip struct fields for tuple structs
+                    ((None, None), false)
+                }
                 clean::AssociatedTypeItem(..) |
                 clean::AssociatedConstItem(..) |
                 clean::TyMethodItem(..) |
@@ -1079,6 +1133,13 @@ impl DocFolder for Cache {
                     // which should not be indexed. The crate-item itself is
                     // inserted later on when serializing the search-index.
                     if item.def_id.index != CRATE_DEF_INDEX {
+                        let parent = parent.map(|p| {
+                            if shortty(&item) == ItemType::StructField &&
+                                self.paths[&p].1 == ItemType::Enum {
+                            (p, Some(self.stack.last().unwrap().clone()))
+                        } else {
+                            (p, None)
+                        }});
                         self.search_index.push(IndexItem {
                             ty: shortty(&item),
                             name: s.to_string(),
@@ -1174,6 +1235,13 @@ impl DocFolder for Cache {
             }
             _ => false
         };
+        let orig_parent_is_tuple_struct = self.parent_is_tuple_struct;
+        if let clean::StructItem(ref s) = item.inner {
+            self.parent_is_tuple_struct = s.struct_type == doctree::StructType::Tuple ||
+                    s.struct_type == doctree::StructType::Newtype;
+        } else if let clean::EnumItem(..) = item.inner {
+            self.parent_is_tuple_struct = false;
+        }
 
         // Once we've recursively found all the generics, then hoard off all the
         // implementations elsewhere
@@ -1220,6 +1288,7 @@ impl DocFolder for Cache {
         self.seen_mod = orig_seen_mod;
         self.stripped_mod = orig_stripped_mod;
         self.parent_is_trait_impl = orig_parent_is_trait_impl;
+        self.parent_is_tuple_struct = orig_parent_is_tuple_struct;
         return ret;
     }
 }

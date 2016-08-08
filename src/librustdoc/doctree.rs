@@ -78,7 +78,7 @@ impl Module {
     }
 }
 
-#[derive(Debug, Clone, RustcEncodable, RustcDecodable, Copy)]
+#[derive(Debug, Clone, RustcEncodable, RustcDecodable, Copy, PartialEq, Eq)]
 pub enum StructType {
     /// A normal struct
     Plain,

@@ -418,16 +418,6 @@
                 return 0;
             });
 
-            // remove duplicates, according to the data provided
-            for (var i = results.length - 1; i > 0; i -= 1) {
-                if (results[i].word === results[i - 1].word &&
-                    results[i].item.ty === results[i - 1].item.ty &&
-                    results[i].item.path === results[i - 1].item.path &&
-                    (results[i].item.parent || {}).name === (results[i - 1].item.parent || {}).name)
-                {
-                    results[i].id = -1;
-                }
-            }
             for (var i = 0; i < results.length; ++i) {
                 var result = results[i],
                     name = result.item.name.toLowerCase(),
@@ -577,10 +567,6 @@
                         displayPath = item.path + '::';
                         href = rootPath + item.path.replace(/::/g, '/') + '/' +
                                name + '/index.html';
-                    } else if (type === 'static' || type === 'reexport') {
-                        displayPath = item.path + '::';
-                        href = rootPath + item.path.replace(/::/g, '/') +
-                               '/index.html';
                     } else if (type === "primitive") {
                         displayPath = "";
                         href = rootPath + item.path.replace(/::/g, '/') +
@@ -590,12 +576,25 @@
                         href = rootPath + name + '/index.html';
                     } else if (item.parent !== undefined) {
                         var myparent = item.parent;
-                        var anchor = '#' + type + '.' + name;
-                        displayPath = item.path + '::' + myparent.name + '::';
-                        href = rootPath + item.path.replace(/::/g, '/') +
-                               '/' + itemTypes[myparent.ty] +
-                               '.' + myparent.name +
-                               '.html' + anchor;
+                        var parentType = itemTypes[myparent.ty];
+                        if (parentType === "primitive") {
+                            displayPath = myparent.name + '::';
+                        } else {
+                            displayPath = item.path + '::' + myparent.name + '::';
+                        }
+                        if (parentType === "variant") {
+                            var anchor = '#' + parentType + '.' + myparent.name + '.' + 'field' + '.' + name;
+                            href = rootPath + item.path.split('::').slice(0, -1).join('/') +
+                                '/' + 'enum' +
+                                '.' + item.path.split('::').pop() +
+                                '.html' + anchor;
+                        } else {
+                            var anchor = '#' + type + '.' + name;
+                            href = rootPath + item.path.replace(/::/g, '/') +
+                                '/' + parentType +
+                                '.' + myparent.name +
+                                '.html' + anchor;
+                        }
                     } else {
                         displayPath = item.path + '::';
                         href = rootPath + item.path.replace(/::/g, '/') +
