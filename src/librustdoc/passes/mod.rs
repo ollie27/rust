@@ -171,16 +171,34 @@ impl<'a> fold::DocFolder for ImplStripper<'a> {
     fn fold_item(&mut self, i: Item) -> Option<Item> {
         if let clean::ImplItem(ref imp) = i.inner {
             // emptied none trait impls can be stripped
+            // impl Type
             if imp.trait_.is_none() && imp.items.is_empty() {
                 return None;
             }
             if let Some(did) = imp.for_.def_id() {
+                // impl Trait for StrippedType
                 if did.is_local() && !imp.for_.is_generic() &&
                     !self.retained.contains(&did)
                 {
                     return None;
                 }
+                // impl StrippedType
+                if imp.trait_.is_none() && !self.retained.contains(&did) {
+                    return None;
+                }
             }
+            // impl<'a> Trait for &'a StrippedType
+            // impl<'a> Trait for &'a mut StrippedType
+            if let clean::Type::BorrowedRef { type_: box ref t, .. } = imp.for_ {
+                if let Some(did) = t.def_id() {
+                    if did.is_local() && !t.is_generic() &&
+                        !self.retained.contains(&did)
+                    {
+                        return None;
+                    }
+                }
+            }
+            // impl StrippedTrait for Type
             if let Some(did) = imp.trait_.def_id() {
                 if did.is_local() && !self.retained.contains(&did) {
                     return None;
