@@ -2106,6 +2106,14 @@ fn item_trait(w: &mut fmt::Formatter, cx: &Context, it: &clean::Item,
         for i in implementors {
             write!(w, "<li><code>")?;
             fmt_impl_for_trait_page(&i.impl_, w)?;
+            if it.name.as_ref().map(String::as_ref) == Some("Default") && (cx.current[0] == "std" || cx.current[0] == "core") {
+                // println!("{}", i.impl_);
+                let f = &i.impl_.items[0];
+                // println!("{:#}: {:?}", i.impl_.for_, f.doc_value())
+                if f.doc_value().is_none() {
+                    println!("{} {:#}", cx.current[0], i.impl_.for_);
+                }
+            }
             writeln!(w, "</code></li>")?;
         }
     }
