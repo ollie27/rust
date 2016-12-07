@@ -41,7 +41,7 @@ macro_rules! t {
 }
 
 fn main() {
-    let docs = env::args().nth(1).unwrap();
+    let docs = env::args_os().nth(1).unwrap();
     let docs = env::current_dir().unwrap().join(docs);
     let mut errors = false;
     walk(&mut HashMap::new(), &docs, &docs, &mut errors);
@@ -54,7 +54,7 @@ fn main() {
 pub enum LoadError {
     IOError(std::io::Error),
     BrokenRedirect(PathBuf, std::io::Error),
-    IsRedirect,
+    IsRedirect(PathBuf, String),
 }
 
 enum Redirect {
@@ -108,14 +108,15 @@ fn check(cache: &mut Cache,
          -> Option<PathBuf> {
     // ignore js files as they are not prone to errors as the rest of the
     // documentation is and they otherwise bring up false positives.
-    if file.extension().and_then(|s| s.to_str()) == Some("js") {
+    if file.extension().and_then(|s| s.to_str()) != Some("html") {
         return None;
     }
 
     // Unfortunately we're not 100% full of valid links today to we need a few
     // whitelists to get this past `make check` today.
     // FIXME(#32129)
-    if file.ends_with("std/string/struct.String.html") {
+    if file.ends_with("std/string/struct.String.html") ||
+       file.ends_with("syntax/symbol/struct.InternedString.html") {
         return None;
     }
     // FIXME(#32553)
@@ -130,10 +131,20 @@ fn check(cache: &mut Cache,
         return None;
     }
 
-    let res = load_file(cache, root, PathBuf::from(file), SkipRedirect);
+    let res = load_file(cache, root, file, SkipRedirect);
     let (pretty_file, contents) = match res {
         Ok(res) => res,
-        Err(_) => return None,
+        Err(LoadError::IsRedirect(pretty_file, target)) => {
+            let path = file.parent().unwrap().join(target);
+            if load_file(cache, root, &path, FromRedirect(true)).is_err() {
+                *errors = true;
+                let pretty_path = path.strip_prefix(root).unwrap_or(&path);
+                println!("{} broken redirect to {}", pretty_file.display(), pretty_path.display());
+            }
+            return None;
+        }
+        Err(LoadError::IOError(err)) => panic!("{}", err),
+        Err(LoadError::BrokenRedirect(..)) => unreachable!(),
     };
     {
         cache.get_mut(&pretty_file)
@@ -151,24 +162,35 @@ fn check(cache: &mut Cache,
         }
         let mut parts = url.splitn(2, "#");
         let url = parts.next().unwrap();
-        if url.is_empty() {
-            return
-        }
         let fragment = parts.next();
         let mut parts = url.splitn(2, "?");
         let url = parts.next().unwrap();
 
+        // Consecutive forward slashes are ignored in file paths but not in a
+        // URLs so treat them as errors early.
+        if url.contains("//") {
+            *errors = true;
+            println!("{}:{}: invalid link - {}", pretty_file.display(), i + 1, url);
+            return;
+        }
+
         // Once we've plucked out the URL, parse it using our base url and
         // then try to extract a file path.
         let mut path = file.to_path_buf();
-        path.pop();
-        for part in Path::new(url).components() {
-            match part {
-                Component::Prefix(_) |
-                Component::RootDir => panic!(),
-                Component::CurDir => {}
-                Component::ParentDir => { path.pop(); }
-                Component::Normal(s) => { path.push(s); }
+        if !url.is_empty() {
+            path.pop();
+            for part in Path::new(url).components() {
+                match part {
+                    Component::Prefix(_) |
+                    Component::RootDir => {
+                        *errors = true;
+                        println!("{}:{}: invalid link - {}", pretty_file.display(), i + 1, url);
+                        return;
+                    }
+                    Component::CurDir => {}
+                    Component::ParentDir => { path.pop(); }
+                    Component::Normal(s) => { path.push(s); }
+                }
             }
         }
 
@@ -186,10 +208,10 @@ fn check(cache: &mut Cache,
                          pretty_path.display());
                 return;
             }
-            let res = load_file(cache, root, path.clone(), FromRedirect(false));
+            let res = load_file(cache, root, &path, FromRedirect(false));
             let (pretty_path, contents) = match res {
                 Ok(res) => res,
-                Err(LoadError::IOError(err)) => panic!(format!("{}", err)),
+                Err(LoadError::IOError(err)) => panic!("{}", err),
                 Err(LoadError::BrokenRedirect(target, _)) => {
                     *errors = true;
                     println!("{}:{}: broken redirect to {}",
@@ -198,23 +220,45 @@ fn check(cache: &mut Cache,
                              target.display());
                     return;
                 }
-                Err(LoadError::IsRedirect) => unreachable!(),
+                Err(LoadError::IsRedirect(..)) => unreachable!(),
             };
 
-            if let Some(ref fragment) = fragment {
-                // Fragments like `#1-6` are most likely line numbers to be
-                // interpreted by javascript, so we're ignoring these
-                if fragment.splitn(2, '-')
-                           .all(|f| f.chars().all(|c| c.is_numeric())) {
+            if let Some(fragment) = fragment {
+                // // Fragments like `#1-6` are most likely line numbers to be
+                // // interpreted by javascript, so we're ignoring these
+                // if fragment.splitn(2, '-')
+                //            .all(|f| f.chars().all(|c| c.is_numeric())) {
+                //     return;
+                // }
+
+                if fragment.is_empty() {
                     return;
                 }
 
                 let entry = &mut cache.get_mut(&pretty_path).unwrap();
                 entry.parse_ids(&pretty_path, &contents, errors);
 
-                if !entry.ids.contains(*fragment) {
+                fn is_numeric(s: &str) -> bool {
+                    s.chars().all(char::is_numeric)
+                }
+
+                let mut iter = fragment.splitn(2, '-').fuse();
+                if let (Some(start), Some(end), None) = (iter.next(), iter.next(), iter.next()) {
+                    if is_numeric(start) && is_numeric(end) {
+                        if !entry.ids.contains(start) || !entry.ids.contains(end) {
+                            *errors = true;
+                            print!("{}:{}: broken link fragment ",
+                                pretty_file.display(),
+                                i + 1);
+                            println!("`#{}` pointing to `{}`", fragment, pretty_path.display());
+                        };
+                        return;
+                    }
+                }
+
+                if !entry.ids.contains(fragment) {
                     *errors = true;
-                    print!("{}:{}: broken link fragment  ",
+                    print!("{}:{}: broken link fragment ",
                            pretty_file.display(),
                            i + 1);
                     println!("`#{}` pointing to `{}`", fragment, pretty_path.display());
@@ -232,7 +276,7 @@ fn check(cache: &mut Cache,
 
 fn load_file(cache: &mut Cache,
              root: &Path,
-             mut file: PathBuf,
+             file: &Path,
              redirect: Redirect)
              -> Result<(PathBuf, String), LoadError> {
     let mut contents = String::new();
@@ -244,9 +288,9 @@ fn load_file(cache: &mut Cache,
             None
         }
         Entry::Vacant(entry) => {
-            let mut fp = File::open(file.clone()).map_err(|err| {
+            let mut fp = File::open(file).map_err(|err| {
                 if let FromRedirect(true) = redirect {
-                    LoadError::BrokenRedirect(file.clone(), err)
+                    LoadError::BrokenRedirect(file.to_path_buf(), err)
                 } else {
                     LoadError::IOError(err)
                 }
@@ -256,7 +300,7 @@ fn load_file(cache: &mut Cache,
             let maybe = maybe_redirect(&contents);
             if maybe.is_some() {
                 if let SkipRedirect = redirect {
-                    return Err(LoadError::IsRedirect);
+                    return Err(LoadError::IsRedirect(pretty_file, maybe.unwrap()));
                 }
             } else {
                 entry.insert(FileEntry {
@@ -267,11 +311,9 @@ fn load_file(cache: &mut Cache,
             maybe
         }
     };
-    file.pop();
-    match maybe_redirect.map(|url| file.join(url)) {
+    match maybe_redirect.map(|url| file.parent().unwrap().join(url)) {
         Some(redirect_file) => {
-            let path = PathBuf::from(redirect_file);
-            load_file(cache, root, path, FromRedirect(true))
+            load_file(cache, root, &redirect_file, FromRedirect(true))
         }
         None => Ok((pretty_file, contents)),
     }
