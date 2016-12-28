@@ -8,6 +8,8 @@
 # option. This file may not be copied, modified, or distributed
 # except according to those terms.
 
+from __future__ import print_function
+
 import argparse
 import contextlib
 import datetime
@@ -85,8 +87,8 @@ def verify(path, sha_path, verbose):
     verified = found == expected
     if not verified:
         print("invalid checksum:\n"
-               "    found:    {}\n"
-               "    expected: {}".format(found, expected))
+              "    found:    {}\n"
+              "    expected: {}".format(found, expected))
     return verified
 
 
@@ -127,7 +129,7 @@ def run(args, verbose=False):
         sys.exit(err)
 
 def stage0_data(rust_root):
-    nightlies = os.path.join(rust_root, "src/stage0.txt")
+    nightlies = os.path.join(rust_root, "src", "stage0.txt")
     data = {}
     with open(nightlies, 'r') as nightlies:
         for line in nightlies:
@@ -143,6 +145,15 @@ def format_build_time(duration):
 
 
 class RustBuild(object):
+    def __init__(self, args):
+        self.config_toml = ''
+        self.config_mk = ''
+        self.rust_root = os.path.abspath(os.path.join(__file__, "..", "..", ".."))
+        self.build_dir = os.path.join(os.getcwd(), "build")
+        self.verbose = args.verbose
+        self.clean = args.clean
+        self.use_vendored_sources = False
+
     def download_stage0(self):
         cache_dst = os.path.join(self.build_dir, "cache")
         rustc_cache = os.path.join(cache_dst, self.stage0_rustc_date())
@@ -236,8 +247,8 @@ class RustBuild(object):
             return config
         config = self.get_mk('CFG_LOCAL_RUST_ROOT')
         if config:
-            return config + '/bin/cargo' + self.exe_suffix()
-        return os.path.join(self.bin_root(), "bin/cargo" + self.exe_suffix())
+            return os.path.join(config, "bin", "cargo" + self.exe_suffix())
+        return os.path.join(self.bin_root(), "bin", "cargo" + self.exe_suffix())
 
     def rustc(self):
         config = self.get_toml('rustc')
@@ -245,8 +256,8 @@ class RustBuild(object):
             return config
         config = self.get_mk('CFG_LOCAL_RUST_ROOT')
         if config:
-            return config + '/bin/rustc' + self.exe_suffix()
-        return os.path.join(self.bin_root(), "bin/rustc" + self.exe_suffix())
+            return os.path.join(config, "bin", "rustc" + self.exe_suffix())
+        return os.path.join(self.bin_root(), "bin", "rustc" + self.exe_suffix())
 
     def get_string(self, line):
         start = line.find('"')
@@ -265,7 +276,7 @@ class RustBuild(object):
         self.printed = True
         if os.path.exists(self.bootstrap_binary()):
             return
-        if not '--help' in sys.argv or len(sys.argv) == 1:
+        if '--help' not in sys.argv or len(sys.argv) == 1:
             return
 
         print('info: the build system for Rust is written in Rust, so this')
@@ -276,7 +287,7 @@ class RustBuild(object):
         print('      src/bootstrap/README.md before the download finishes')
 
     def bootstrap_binary(self):
-        return os.path.join(self.build_dir, "bootstrap/debug/bootstrap")
+        return os.path.join(self.build_dir, "bootstrap", "debug", "bootstrap" + self.exe_suffix())
 
     def build_bootstrap(self):
         self.print_what_it_means_to_bootstrap()
@@ -293,7 +304,7 @@ class RustBuild(object):
         if not os.path.isfile(self.cargo()):
             raise Exception("no cargo executable found at `%s`" % self.cargo())
         args = [self.cargo(), "build", "--manifest-path",
-                os.path.join(self.rust_root, "src/bootstrap/Cargo.toml")]
+                os.path.join(self.rust_root, "src", "bootstrap", "Cargo.toml")]
         if self.use_vendored_sources:
             args.append("--frozen")
         self.run(args, env)
@@ -417,22 +428,16 @@ def main():
     args, _ = parser.parse_known_args(args)
 
     # Configure initial bootstrap
-    rb = RustBuild()
-    rb.config_toml = ''
-    rb.config_mk = ''
-    rb.rust_root = os.path.abspath(os.path.join(__file__, '../../..'))
-    rb.build_dir = os.path.join(os.getcwd(), "build")
-    rb.verbose = args.verbose
-    rb.clean = args.clean
+    rb = RustBuild(args)
 
     try:
         with open(args.config or 'config.toml') as config:
             rb.config_toml = config.read()
-    except:
+    except IOError:
         pass
     try:
         rb.config_mk = open('config.mk').read()
-    except:
+    except IOError:
         pass
 
     rb.use_vendored_sources = '\nvendor = true' in rb.config_toml or \
@@ -450,7 +455,7 @@ def main():
     if rb.use_vendored_sources:
         if not os.path.exists('.cargo'):
             os.makedirs('.cargo')
-        with open('.cargo/config','w') as f:
+        with open('.cargo/config', 'w') as f:
             f.write("""
                 [source.crates-io]
                 replace-with = 'vendored-sources'
@@ -487,7 +492,7 @@ def main():
 
     end_time = time()
 
-    print("Build completed in %s" % format_build_time(end_time - start_time))
+    print("Build completed in {}".format(format_build_time(end_time - start_time)))
 
 if __name__ == '__main__':
     main()
