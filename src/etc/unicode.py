@@ -13,17 +13,20 @@
 # This script uses the following Unicode tables:
 # - DerivedCoreProperties.txt
 # - DerivedNormalizationProps.txt
-# - EastAsianWidth.txt
-# - auxiliary/GraphemeBreakProperty.txt
 # - PropList.txt
 # - ReadMe.txt
 # - Scripts.txt
+# - SpecialCasing.txt
 # - UnicodeData.txt
 #
 # Since this should not require frequent updates, we just store this
 # out-of-line and check the unicode.rs file into git.
 
-import fileinput, re, os, sys, operator
+import fileinput
+import operator
+import os
+import re
+import sys
 
 bytes_old = 0
 bytes_new = 0
@@ -60,17 +63,19 @@ expanded_categories = {
 # these are the surrogate codepoints, which are not valid rust characters
 surrogate_codepoints = (0xd800, 0xdfff)
 
+
 def fetch(f):
     if not os.path.exists(os.path.basename(f)):
-        os.system("curl -O http://www.unicode.org/Public/UNIDATA/%s"
-                  % f)
+        os.system("curl -O http://www.unicode.org/Public/UNIDATA/" + f)
 
     if not os.path.exists(os.path.basename(f)):
-        sys.stderr.write("cannot load %s" % f)
+        sys.stderr.write("cannot load " + f)
         exit(1)
+
 
 def is_surrogate(n):
     return surrogate_codepoints[0] <= n <= surrogate_codepoints[1]
+
 
 def load_unicode_data(f):
     fetch(f)
@@ -92,7 +97,7 @@ def load_unicode_data(f):
         if is_surrogate(cp):
             continue
         if range_start >= 0:
-            for i in xrange(range_start, cp):
+            for i in range(range_start, cp):
                 udict[i] = data
             range_start = -1
         if data[1].endswith(", First>"):
@@ -146,13 +151,14 @@ def load_unicode_data(f):
     # generate Not_Assigned from Assigned
     gencats["Cn"] = gen_unassigned(gencats["Assigned"])
     # Assigned is not a real category
-    del(gencats["Assigned"])
+    del gencats["Assigned"]
     # Other contains Not_Assigned
     gencats["C"].extend(gencats["Cn"])
     gencats = group_cats(gencats)
     combines = to_combines(group_cats(combines))
 
     return (canon_decomp, compat_decomp, gencats, combines, to_upper, to_lower, to_title)
+
 
 def load_special_casing(f, to_upper, to_lower, to_title):
     fetch(f)
@@ -179,11 +185,13 @@ def load_special_casing(f, to_upper, to_lower, to_title):
                 assert len(values) == 3
                 map_[key] = values
 
+
 def group_cats(cats):
     cats_out = {}
     for cat in cats:
         cats_out[cat] = group_cat(cats[cat])
     return cats_out
+
 
 def group_cat(cat):
     cat_out = []
@@ -192,7 +200,7 @@ def group_cat(cat):
     cur_end = cur_start
     for letter in letters:
         assert letter > cur_end, \
-            "cur_end: %s, letter: %s" % (hex(cur_end), hex(letter))
+            "cur_end: 0x{:x}, letter: 0x{:x}".format(cur_end, letter)
         if letter == cur_end + 1:
             cur_end = letter
         else:
@@ -200,6 +208,7 @@ def group_cat(cat):
             cur_start = cur_end = letter
     cat_out.append((cur_start, cur_end))
     return cat_out
+
 
 def ungroup_cat(cat):
     cat_out = []
@@ -209,10 +218,12 @@ def ungroup_cat(cat):
             lo += 1
     return cat_out
 
+
 def gen_unassigned(assigned):
     assigned = set(assigned)
     return ([i for i in range(0, 0xd800) if i not in assigned] +
             [i for i in range(0xe000, 0x110000) if i not in assigned])
+
 
 def to_combines(combs):
     combs_out = []
@@ -222,8 +233,9 @@ def to_combines(combs):
     combs_out.sort(key=lambda comb: comb[0])
     return combs_out
 
+
 def format_table_content(f, content, indent):
-    line = " "*indent
+    line = " " * indent
     first = True
     for chunk in content.split(","):
         if len(line) + len(chunk) < 98:
@@ -234,14 +246,15 @@ def format_table_content(f, content, indent):
             first = False
         else:
             f.write(line + ",\n")
-            line = " "*indent + chunk
+            line = " " * indent + chunk
     f.write(line)
+
 
 def load_properties(f, interestingprops):
     fetch(f)
     props = {}
-    re1 = re.compile("^ *([0-9A-F]+) *; *(\w+)")
-    re2 = re.compile("^ *([0-9A-F]+)\.\.([0-9A-F]+) *; *(\w+)")
+    re1 = re.compile(r"^ *([0-9A-F]+) *; *(\w+)")
+    re2 = re.compile(r"^ *([0-9A-F]+)\.\.([0-9A-F]+) *; *(\w+)")
 
     for line in fileinput.input(os.path.basename(f)):
         prop = None
@@ -274,8 +287,10 @@ def load_properties(f, interestingprops):
 
     return props
 
+
 def escape_char(c):
-    return "'\\u{%x}'" % c if c != 0 else "'\\0'"
+    return "'\\u{{{:x}}}'".format(c) if c != 0 else "'\\0'"
+
 
 def emit_bsearch_range_table(f):
     f.write("""
@@ -294,12 +309,13 @@ fn bsearch_range_table(c: char, r: &'static [(char, char)]) -> bool {
 }\n
 """)
 
-def emit_table(f, name, t_data, t_type = "&'static [(char, char)]", is_pub=True,
-        pfun=lambda x: "(%s,%s)" % (escape_char(x[0]), escape_char(x[1]))):
+
+def emit_table(f, name, t_data, t_type="&'static [(char, char)]", is_pub=True,
+               pfun=lambda x: "({},{})".format(escape_char(x[0]), escape_char(x[1]))):
     pub_string = ""
     if is_pub:
         pub_string = "pub "
-    f.write("    %sconst %s: %s = &[\n" % (pub_string, name, t_type))
+    f.write("    {}const {}: {} = &[\n".format(pub_string, name, t_type))
     data = ""
     first = True
     for dat in t_data:
@@ -309,6 +325,7 @@ def emit_table(f, name, t_data, t_type = "&'static [(char, char)]", is_pub=True,
         data += pfun(dat)
     format_table_content(f, data, 8)
     f.write("\n    ];\n\n")
+
 
 def emit_trie_lookup_range_table(f):
     f.write("""
@@ -365,11 +382,12 @@ fn trie_lookup_range_table(c: char, r: &'static BoolTrie) -> bool {
 }\n
 """)
 
+
 def compute_trie(rawdata, chunksize):
     root = []
     childmap = {}
     child_data = []
-    for i in range(len(rawdata) / chunksize):
+    for i in range(len(rawdata) // chunksize):
         data = rawdata[i * chunksize: (i + 1) * chunksize]
         child = '|'.join(map(str, data))
         if child not in childmap:
@@ -377,6 +395,7 @@ def compute_trie(rawdata, chunksize):
             child_data.extend(data)
         root.append(childmap[child])
     return (root, child_data)
+
 
 def emit_bool_trie(f, name, t_data, is_pub=True):
     global bytes_old, bytes_new
@@ -389,7 +408,7 @@ def emit_bool_trie(f, name, t_data, is_pub=True):
 
     # convert to bitmap chunks of 64 bits each
     chunks = []
-    for i in range(0x110000 / CHUNK):
+    for i in range(0x110000 // CHUNK):
         chunk = 0
         for j in range(64):
             if rawdata[i * 64 + j]:
@@ -399,25 +418,29 @@ def emit_bool_trie(f, name, t_data, is_pub=True):
     pub_string = ""
     if is_pub:
         pub_string = "pub "
-    f.write("    %sconst %s: &'static super::BoolTrie = &super::BoolTrie {\n" % (pub_string, name))
+    f.write("    {}const {}: &'static super::BoolTrie = &super::BoolTrie {{\n"
+            .format(pub_string, name))
     f.write("        r1: [\n")
-    data = ','.join('0x%016x' % chunk for chunk in chunks[0:0x800 / CHUNK])
+    data = ','.join('0x{:016x}'.format(chunk)
+                    for chunk in chunks[0:0x800 // CHUNK])
     format_table_content(f, data, 12)
     f.write("\n        ],\n")
 
     # 0x800..0x10000 trie
-    (r2, r3) = compute_trie(chunks[0x800 / CHUNK : 0x10000 / CHUNK], 64 / CHUNK)
+    (r2, r3) = compute_trie(
+        chunks[0x800 // CHUNK: 0x10000 // CHUNK], 64 // CHUNK)
     f.write("        r2: [\n")
     data = ','.join(str(node) for node in r2)
     format_table_content(f, data, 12)
     f.write("\n        ],\n")
     f.write("        r3: &[\n")
-    data = ','.join('0x%016x' % chunk for chunk in r3)
+    data = ','.join('0x{:016x}'.format(chunk) for chunk in r3)
     format_table_content(f, data, 12)
     f.write("\n        ],\n")
 
     # 0x10000..0x110000 trie
-    (mid, r6) = compute_trie(chunks[0x10000 / CHUNK : 0x110000 / CHUNK], 64 / CHUNK)
+    (mid, r6) = compute_trie(
+        chunks[0x10000 // CHUNK: 0x110000 // CHUNK], 64 // CHUNK)
     (r4, r5) = compute_trie(mid, 64)
     f.write("        r4: [\n")
     data = ','.join(str(node) for node in r4)
@@ -428,21 +451,23 @@ def emit_bool_trie(f, name, t_data, is_pub=True):
     format_table_content(f, data, 12)
     f.write("\n        ],\n")
     f.write("        r6: &[\n")
-    data = ','.join('0x%016x' % chunk for chunk in r6)
+    data = ','.join('0x{:016x}'.format(chunk) for chunk in r6)
     format_table_content(f, data, 12)
     f.write("\n        ],\n")
 
     f.write("    };\n\n")
     bytes_new += 256 + 992 + 256 + 8 * len(r3) + len(r5) + 8 * len(r6)
 
+
 def emit_property_module(f, mod, tbl, emit):
-    f.write("pub mod %s {\n" % mod)
+    f.write("pub mod {} {{\n".format(mod))
     for cat in sorted(emit):
-        emit_bool_trie(f, "%s_table" % cat, tbl[cat])
-        f.write("    pub fn %s(c: char) -> bool {\n" % cat)
-        f.write("        super::trie_lookup_range_table(c, %s_table)\n" % cat)
+        emit_bool_trie(f, "{}_table".format(cat), tbl[cat])
+        f.write("    pub fn {}(c: char) -> bool {{\n".format(cat))
+        f.write("        super::trie_lookup_range_table(c, {}_table)\n".format(cat))
         f.write("    }\n\n")
     f.write("}\n\n")
+
 
 def emit_conversions_module(f, to_upper, to_lower, to_title):
     f.write("pub mod conversions {")
@@ -470,35 +495,30 @@ def emit_conversions_module(f, to_upper, to_lower, to_title):
 
 """)
     t_type = "&'static [(char, [char; 3])]"
-    pfun = lambda x: "(%s,[%s,%s,%s])" % (
+    pfun = lambda x: "({},[{},{},{}])".format(
         escape_char(x[0]), escape_char(x[1][0]), escape_char(x[1][1]), escape_char(x[1][2]))
     emit_table(f, "to_lowercase_table",
-        sorted(to_lower.iteritems(), key=operator.itemgetter(0)),
-        is_pub=False, t_type = t_type, pfun=pfun)
+               sorted(to_lower.items(), key=operator.itemgetter(0)),
+               is_pub=False, t_type=t_type, pfun=pfun)
     emit_table(f, "to_uppercase_table",
-        sorted(to_upper.iteritems(), key=operator.itemgetter(0)),
-        is_pub=False, t_type = t_type, pfun=pfun)
+               sorted(to_upper.items(), key=operator.itemgetter(0)),
+               is_pub=False, t_type=t_type, pfun=pfun)
     f.write("}\n\n")
 
-def emit_norm_module(f, canon, compat, combine, norm_props):
-    canon_keys = canon.keys()
-    canon_keys.sort()
 
-    compat_keys = compat.keys()
-    compat_keys.sort()
+def emit_norm_module(f, canon, compat, combine, norm_props):
+    canon_keys = sorted(canon.keys())
 
     canon_comp = {}
     comp_exclusions = norm_props["Full_Composition_Exclusion"]
     for char in canon_keys:
-        if True in map(lambda (lo, hi): lo <= char <= hi, comp_exclusions):
+        if any(lo <= char <= hi for (lo, hi) in comp_exclusions):
             continue
         decomp = canon[char]
         if len(decomp) == 2:
-            if not canon_comp.has_key(decomp[0]):
+            if decomp[0] not in canon_comp:
                 canon_comp[decomp[0]] = []
-            canon_comp[decomp[0]].append( (decomp[1], char) )
-    canon_comp_keys = canon_comp.keys()
-    canon_comp_keys.sort()
+            canon_comp[decomp[0]].append((decomp[1], char))
 
 if __name__ == "__main__":
     r = "tables.rs"
@@ -511,24 +531,25 @@ if __name__ == "__main__":
         # download and parse all the data
         fetch("ReadMe.txt")
         with open("ReadMe.txt") as readme:
-            pattern = "for Version (\d+)\.(\d+)\.(\d+) of the Unicode"
+            pattern = r"for Version (\d+)\.(\d+)\.(\d+) of the Unicode"
             unicode_version = re.search(pattern, readme.read()).groups()
         rf.write("""
 /// The version of [Unicode](http://www.unicode.org/)
 /// that the unicode parts of `CharExt` and `UnicodeStrPrelude` traits are based on.
-pub const UNICODE_VERSION: (u64, u64, u64) = (%s, %s, %s);
-""" % unicode_version)
+pub const UNICODE_VERSION: (u64, u64, u64) = ({}, {}, {});
+""".format(*unicode_version))
         (canon_decomp, compat_decomp, gencats, combines,
-                to_upper, to_lower, to_title) = load_unicode_data("UnicodeData.txt")
+         to_upper, to_lower, to_title) = load_unicode_data("UnicodeData.txt")
         load_special_casing("SpecialCasing.txt", to_upper, to_lower, to_title)
         want_derived = ["XID_Start", "XID_Continue", "Alphabetic", "Lowercase", "Uppercase",
                         "Cased", "Case_Ignorable"]
         derived = load_properties("DerivedCoreProperties.txt", want_derived)
         scripts = load_properties("Scripts.txt", [])
         props = load_properties("PropList.txt",
-                ["White_Space", "Join_Control", "Noncharacter_Code_Point", "Pattern_White_Space"])
+                                ["White_Space", "Join_Control", "Noncharacter_Code_Point",
+                                 "Pattern_White_Space"])
         norm_props = load_properties("DerivedNormalizationProps.txt",
-                     ["Full_Composition_Exclusion"])
+                                     ["Full_Composition_Exclusion"])
 
         # trie_lookup_table is used in all the property modules below
         emit_trie_lookup_range_table(rf)
@@ -543,4 +564,3 @@ pub const UNICODE_VERSION: (u64, u64, u64) = (%s, %s, %s);
         # normalizations and conversions module
         emit_norm_module(rf, canon_decomp, compat_decomp, combines, norm_props)
         emit_conversions_module(rf, to_upper, to_lower, to_title)
-    #print 'bytes before = %d, bytes after = %d' % (bytes_old, bytes_new)
