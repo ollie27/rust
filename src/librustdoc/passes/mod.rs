@@ -33,6 +33,9 @@ pub use self::strip_priv_imports::strip_priv_imports;
 mod unindent_comments;
 pub use self::unindent_comments::unindent_comments;
 
+mod strip_unstable;
+pub use self::strip_unstable::strip_unstable;
+
 type Pass = (&'static str,                                      // name
              fn(clean::Crate) -> plugins::PluginResult,         // fn
              &'static str);                                     // description
@@ -49,9 +52,12 @@ pub const PASSES: &'static [Pass] = &[
       implies strip-priv-imports"),
     ("strip-priv-imports", strip_priv_imports,
      "strips all private import statements (`use`, `extern crate`) from a crate"),
+    ("strip-unstable", strip_unstable,
+     "strips all unstable items without a tracking issue"),
 ];
 
 pub const DEFAULT_PASSES: &'static [&'static str] = &[
+    "strip-unstable",
     "strip-hidden",
     "strip-private",
     "collapse-docs",

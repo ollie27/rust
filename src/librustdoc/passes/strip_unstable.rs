@@ -9,9 +9,10 @@
 // except according to those terms.
 
 use rustc::util::nodemap::DefIdSet;
+use rustc::middle::stability;
 use std::mem;
 
-use clean::{self, AttributesExt, NestedAttributesExt};
+use clean;
 use clean::Item;
 use plugins;
 use fold;
@@ -19,17 +20,14 @@ use fold::DocFolder;
 use fold::FoldItem::Strip;
 use passes::ImplStripper;
 
-/// Strip items marked `#[doc(hidden)]`
-pub fn strip_hidden(krate: clean::Crate) -> plugins::PluginResult {
+pub fn strip_unstable(krate: clean::Crate) -> plugins::PluginResult {
     let mut retained = DefIdSet();
 
-    // strip all #[doc(hidden)] items
     let krate = {
         let mut stripper = Stripper{ retained: &mut retained, update_retained: true };
         stripper.fold_crate(krate)
     };
 
-    // strip all impls referencing stripped items
     let mut stripper = ImplStripper { retained: &retained };
     stripper.fold_crate(krate)
 }
@@ -41,9 +39,7 @@ struct Stripper<'a> {
 
 impl<'a> fold::DocFolder for Stripper<'a> {
     fn fold_item(&mut self, i: Item) -> Option<Item> {
-        if i.attrs.lists("doc").has_word("hidden") {
-            debug!("found one in strip_hidden; removing");
-            // use a dedicated hidden item for given item type if any
+        if let Some(clean::Stability { level: stability::Unstable, issue: Some(0), .. }) = i.stability {
             match i.inner {
                 clean::StructFieldItem(..) | clean::ModuleItem(..) => {
                     // We need to recurse into stripped modules to
