@@ -392,7 +392,7 @@ mod impls {
     #[stable(feature = "rust1", since = "1.0.0")]
     impl Hash for char {
         fn hash<H: Hasher>(&self, state: &mut H) {
-            state.write_u32(*self as u32)
+            state.write_u32(u32::from(*self))
         }
     }
 

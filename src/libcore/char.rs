@@ -213,7 +213,7 @@ impl TryFrom<u32> for char {
 
     #[inline]
     fn try_from(i: u32) -> Result<Self, Self::Err> {
-        if (i > MAX as u32) || (i >= 0xD800 && i <= 0xDFFF) {
+        if (i > u32::from(MAX)) || (i >= 0xD800 && i <= 0xDFFF) {
             Err(CharTryFromError(()))
         } else {
             Ok(unsafe { from_u32_unchecked(i) })
@@ -296,9 +296,9 @@ pub fn from_digit(num: u32, radix: u32) -> Option<char> {
     if num < radix {
         let num = num as u8;
         if num < 10 {
-            Some((b'0' + num) as char)
+            Some(char::from(b'0' + num))
         } else {
-            Some((b'a' + num - 10) as char)
+            Some(char::from(b'a' + num - 10))
         }
     } else {
         None
@@ -346,9 +346,9 @@ impl CharExt for char {
             panic!("to_digit: radix is too high (maximum 36)");
         }
         let val = match self {
-          '0' ... '9' => self as u32 - '0' as u32,
-          'a' ... 'z' => self as u32 - 'a' as u32 + 10,
-          'A' ... 'Z' => self as u32 - 'A' as u32 + 10,
+          '0' ... '9' => u32::from(self) - u32::from('0'),
+          'a' ... 'z' => u32::from(self) - u32::from('a') + 10,
+          'A' ... 'Z' => u32::from(self) - u32::from('A') + 10,
           _ => return None,
         };
         if val < radix { Some(val) }
@@ -357,7 +357,7 @@ impl CharExt for char {
 
     #[inline]
     fn escape_unicode(self) -> EscapeUnicode {
-        let c = self as u32;
+        let c = u32::from(self);
 
         // or-ing 1 ensures that for c==0 the code computes that one
         // digit should be printed and (which is the same) avoids the
@@ -401,7 +401,7 @@ impl CharExt for char {
 
     #[inline]
     fn len_utf8(self) -> usize {
-        let code = self as u32;
+        let code = u32::from(self);
         if code < MAX_ONE_B {
             1
         } else if code < MAX_TWO_B {
@@ -415,13 +415,13 @@ impl CharExt for char {
 
     #[inline]
     fn len_utf16(self) -> usize {
-        let ch = self as u32;
+        let ch = u32::from(self);
         if (ch & 0xFFFF) == ch { 1 } else { 2 }
     }
 
     #[inline]
     fn encode_utf8(self, dst: &mut [u8]) -> &mut str {
-        let code = self as u32;
+        let code = u32::from(self);
         unsafe {
             let len =
             if code < MAX_ONE_B && !dst.is_empty() {
@@ -454,7 +454,7 @@ impl CharExt for char {
 
     #[inline]
     fn encode_utf16(self, dst: &mut [u16]) -> &mut [u16] {
-        let mut code = self as u32;
+        let mut code = u32::from(self);
         unsafe {
             if (code & 0xFFFF) == code && !dst.is_empty() {
                 // The BMP falls through (assuming non-surrogate, as it should)
@@ -528,7 +528,7 @@ impl Iterator for EscapeUnicode {
                 Some('{')
             }
             EscapeUnicodeState::Value => {
-                let hex_digit = ((self.c as u32) >> (self.hex_digit_idx * 4)) & 0xf;
+                let hex_digit = (u32::from(self.c) >> (self.hex_digit_idx * 4)) & 0xf;
                 let c = from_digit(hex_digit, 16).unwrap();
                 if self.hex_digit_idx == 0 {
                     self.state = EscapeUnicodeState::RightBrace;

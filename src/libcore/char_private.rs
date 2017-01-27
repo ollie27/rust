@@ -24,9 +24,9 @@ fn check(x: u16, singletons: &[u16], normal: &[u16]) -> bool {
     for w in normal.chunks(2) {
         let start = w[0];
         let len = w[1];
-        let difference = (x as i32) - (start as i32);
+        let difference = i32::from(x) - i32::from(start);
         if 0 <= difference {
-            if difference < len as i32 {
+            if difference < i32::from(len) {
                 return false;
             }
         } else {
@@ -37,7 +37,7 @@ fn check(x: u16, singletons: &[u16], normal: &[u16]) -> bool {
 }
 
 pub fn is_printable(x: char) -> bool {
-    let x = x as u32;
+    let x = u32::from(x);
     let lower = x as u16;
     if x < 0x10000 {
         check(lower, SINGLETONS0, NORMAL0)

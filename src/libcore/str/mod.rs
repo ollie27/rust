@@ -350,7 +350,7 @@ pub fn next_code_point<'a, I: Iterator<Item = &'a u8>>(bytes: &mut I) -> Option<
     // Decode UTF-8
     let x = match bytes.next() {
         None => return None,
-        Some(&next_byte) if next_byte < 128 => return Some(next_byte as u32),
+        Some(&next_byte) if next_byte < 128 => return Some(u32::from(next_byte)),
         Some(&next_byte) => next_byte,
     };
 
@@ -386,7 +386,7 @@ fn next_code_point_reverse<'a, I>(bytes: &mut I) -> Option<u32>
     // Decode UTF-8
     let w = match bytes.next_back() {
         None => return None,
-        Some(&next_byte) if next_byte < 128 => return Some(next_byte as u32),
+        Some(&next_byte) if next_byte < 128 => return Some(u32::from(next_byte)),
         Some(&back_byte) => back_byte,
     };
 
@@ -1258,7 +1258,7 @@ fn run_utf8_validation(v: &[u8]) -> Result<(), Utf8Error> {
 
         let first = v[index];
         if first >= 128 {
-            let w = UTF8_CHAR_WIDTH[first as usize];
+            let w = UTF8_CHAR_WIDTH[usize::from(first)];
             let second = next!();
             // 2-byte encoding is for codepoints  \u{0080} to  \u{07ff}
             //        first  C2 80        last DF BF

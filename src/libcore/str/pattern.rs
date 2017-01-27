@@ -249,7 +249,7 @@ impl CharEq for char {
     fn matches(&mut self, c: char) -> bool { *self == c }
 
     #[inline]
-    fn only_ascii(&self) -> bool { (*self as u32) < 128 }
+    fn only_ascii(&self) -> bool { u32::from(*self) < 128 }
 }
 
 impl<F> CharEq for F where F: FnMut(char) -> bool {
@@ -909,7 +909,7 @@ impl TwoWaySearcher {
 
     #[inline(always)]
     fn byteset_contains(&self, byte: u8) -> bool {
-        (self.byteset >> ((byte & 0x3f) as usize)) & 1 != 0
+        (self.byteset >> usize::from(byte & 0x3f)) & 1 != 0
     }
 
     // One of the main ideas of Two-Way is that we factorize the needle into

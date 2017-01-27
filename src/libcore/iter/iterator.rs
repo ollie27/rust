@@ -1183,7 +1183,7 @@ pub trait Iterator {
     ///
     /// let hello: String = chars.iter()
     ///                          .map(|&x| x as u8)
-    ///                          .map(|x| (x + 1) as char)
+    ///                          .map(|x| char::from(x + 1))
     ///                          .collect();
     ///
     /// assert_eq!("hello", hello);

@@ -226,7 +226,7 @@ impl Float for f32 {
         };
         // Exponent bias + mantissa shift
         exponent -= 127 + 23;
-        (mantissa as u64, exponent, sign)
+        (u64::from(mantissa), exponent, sign)
     }
 
     /// Computes the absolute value of `self`. Returns `Float::nan()` if the

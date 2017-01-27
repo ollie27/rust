@@ -421,8 +421,8 @@ impl<T: ?Sized> *const T {
     /// let ptr: *const u8 = s.as_ptr();
     ///
     /// unsafe {
-    ///     println!("{}", *ptr.offset(1) as char);
-    ///     println!("{}", *ptr.offset(2) as char);
+    ///     println!("{}", char::from(*ptr.offset(1)));
+    ///     println!("{}", char::from(*ptr.offset(2)));
     /// }
     /// ```
     #[stable(feature = "rust1", since = "1.0.0")]

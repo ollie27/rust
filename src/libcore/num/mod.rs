@@ -2780,7 +2780,7 @@ fn from_str_radix<T: FromStrRadixHelper>(src: &str, radix: u32) -> Result<T, Par
     if is_positive {
         // The number is positive
         for &c in digits {
-            let x = match (c as char).to_digit(radix) {
+            let x = match char::from(c).to_digit(radix) {
                 Some(x) => x,
                 None => return Err(PIE { kind: InvalidDigit }),
             };
@@ -2796,7 +2796,7 @@ fn from_str_radix<T: FromStrRadixHelper>(src: &str, radix: u32) -> Result<T, Par
     } else {
         // The number is negative
         for &c in digits {
-            let x = match (c as char).to_digit(radix) {
+            let x = match char::from(c).to_digit(radix) {
                 Some(x) => x,
                 None => return Err(PIE { kind: InvalidDigit }),
             };
