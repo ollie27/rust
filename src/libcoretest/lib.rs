@@ -19,6 +19,8 @@
 #![feature(decode_utf8)]
 #![feature(fixed_size_array)]
 #![feature(flt2dec)]
+#![feature(i128)]
+#![feature(i128_type)]
 #![feature(libc)]
 #![feature(nonzero)]
 #![feature(rand)]
