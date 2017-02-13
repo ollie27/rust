@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # Copyright 2015 The Rust Project Developers. See the COPYRIGHT
 # file at the top-level directory of this distribution and at
 # http://rust-lang.org/COPYRIGHT.
@@ -105,16 +106,24 @@ checks if the given file does not exist, for example.
 """
 
 from __future__ import print_function
-import sys
+
 import os.path
 import re
 import shlex
+import sys
 from collections import namedtuple
-from HTMLParser import HTMLParser
 from xml.etree import cElementTree as ET
 
+if sys.version_info[0] < 3:
+    from htmlentitydefs import entitydefs
+    from HTMLParser import HTMLParser
+else:
+    from html.parser import HTMLParser
+    from html.entities import entitydefs
+    unichr = chr
+    xrange = range
+
 # &larrb;/&rarrb; are not in HTML 4 but are in HTML 5
-from htmlentitydefs import entitydefs
 entitydefs['larrb'] = u'\u21e4'
 entitydefs['rarrb'] = u'\u21e5'
 entitydefs['nbsp'] = ' '
@@ -130,6 +139,7 @@ class CustomHTMLParser(HTMLParser):
     this is possible because we are dealing with very regular HTML from
     rustdoc; we only have to deal with i) void elements and ii) empty
     attributes."""
+
     def __init__(self, target=None):
         HTMLParser.__init__(self)
         self.__builder = target or ET.TreeBuilder()
@@ -155,7 +165,8 @@ class CustomHTMLParser(HTMLParser):
         self.__builder.data(entitydefs[name])
 
     def handle_charref(self, name):
-        code = int(name[1:], 16) if name.startswith(('x', 'X')) else int(name, 10)
+        code = int(name[1:], 16) if name.startswith(
+            ('x', 'X')) else int(name, 10)
         self.__builder.data(unichr(code).encode('utf-8'))
 
     def close(self):
@@ -164,11 +175,14 @@ class CustomHTMLParser(HTMLParser):
 
 Command = namedtuple('Command', 'negated cmd args lineno context')
 
+
 class FailedCheck(Exception):
     pass
 
+
 class InvalidCheck(Exception):
     pass
+
 
 def concat_multi_lines(f):
     """returns a generator out of the file object, which
@@ -176,7 +190,7 @@ def concat_multi_lines(f):
       optional whitespace;
     - keeps a line number (starting from 0) of the first line being
       concatenated."""
-    lastline = None # set to the last line when the last line has a backslash
+    lastline = None  # set to the last line when the last line has a backslash
     firstlineno = None
     catenated = ''
     for lineno, line in enumerate(f):
@@ -213,7 +227,7 @@ LINE_PATTERN = re.compile(r'''
 
 
 def get_commands(template):
-    with open(template, 'rUb') as f:
+    with open(template, 'r') as f:
         for lineno, line in concat_multi_lines(f):
             m = LINE_PATTERN.search(line)
             if not m:
@@ -226,7 +240,7 @@ def get_commands(template):
                 print_err(lineno, line, 'Invalid template syntax')
                 continue
             args = shlex.split(args)
-            yield Command(negated=negated, cmd=cmd, args=args, lineno=lineno+1, context=line)
+            yield Command(negated=negated, cmd=cmd, args=args, lineno=lineno + 1, context=line)
 
 
 def _flatten(node, acc):
@@ -246,14 +260,16 @@ def flatten(node):
 
 def normalize_xpath(path):
     if path.startswith('//'):
-        return '.' + path # avoid warnings
+        return '.' + path  # avoid warnings
     elif path.startswith('.//'):
         return path
     else:
-        raise InvalidCheck('Non-absolute XPath is not supported due to implementation issues')
+        raise InvalidCheck(
+            'Non-absolute XPath is not supported due to implementation issues')
 
 
 class CachedFiles(object):
+
     def __init__(self, root):
         self.root = root
         self.files = {}
@@ -266,7 +282,8 @@ class CachedFiles(object):
             self.last_path = path
             return path
         elif self.last_path is None:
-            raise InvalidCheck('Tried to use the previous path in the first command')
+            raise InvalidCheck(
+                'Tried to use the previous path in the first command')
         else:
             return self.last_path
 
@@ -297,14 +314,15 @@ class CachedFiles(object):
             try:
                 tree = ET.parse(f, CustomHTMLParser())
             except Exception as e:
-                raise RuntimeError('Cannot parse an HTML file {!r}: {}'.format(path, e))
+                raise RuntimeError(
+                    'Cannot parse an HTML file {!r}: {}'.format(path, e))
             self.trees[path] = tree
             return self.trees[path]
 
 
 def check_string(data, pat, regexp):
     if not pat:
-        return True # special case a presence testing
+        return True  # special case a presence testing
     elif regexp:
         return re.search(pat, data) is not None
     else:
@@ -347,8 +365,10 @@ def get_tree_count(tree, path):
     path = normalize_xpath(path)
     return len(tree.findall(path))
 
+
 def stderr(*args):
     print(*args, file=sys.stderr)
+
 
 def print_err(lineno, context, err, message=None):
     global ERR_COUNT
@@ -362,44 +382,50 @@ def print_err(lineno, context, err, message=None):
 
 ERR_COUNT = 0
 
+
 def check_command(c, cache):
     try:
         cerr = ""
-        if c.cmd == 'has' or c.cmd == 'matches': # string test
+        if c.cmd == 'has' or c.cmd == 'matches':  # string test
             regexp = (c.cmd == 'matches')
-            if len(c.args) == 1 and not regexp: # @has <path> = file existence
+            if len(c.args) == 1 and not regexp:  # @has <path> = file existence
                 try:
                     cache.get_file(c.args[0])
                     ret = True
                 except FailedCheck as err:
-                    cerr = err.message
+                    cerr = str(err)
                     ret = False
-            elif len(c.args) == 2: # @has/matches <path> <pat> = string test
+            elif len(c.args) == 2:  # @has/matches <path> <pat> = string test
                 cerr = "`PATTERN` did not match"
-                ret = check_string(cache.get_file(c.args[0]), c.args[1], regexp)
-            elif len(c.args) == 3: # @has/matches <path> <pat> <match> = XML tree test
+                ret = check_string(cache.get_file(
+                    c.args[0]), c.args[1], regexp)
+            elif len(c.args) == 3:  # @has/matches <path> <pat> <match> = XML tree test
                 cerr = "`XPATH PATTERN` did not match"
                 tree = cache.get_tree(c.args[0])
                 pat, sep, attr = c.args[1].partition('/@')
-                if sep: # attribute
+                if sep:  # attribute
                     tree = cache.get_tree(c.args[0])
                     ret = check_tree_attr(tree, pat, attr, c.args[2], regexp)
-                else: # normalized text
+                else:  # normalized text
                     pat = c.args[1]
                     if pat.endswith('/text()'):
                         pat = pat[:-7]
-                    ret = check_tree_text(cache.get_tree(c.args[0]), pat, c.args[2], regexp)
+                    ret = check_tree_text(cache.get_tree(
+                        c.args[0]), pat, c.args[2], regexp)
             else:
-                raise InvalidCheck('Invalid number of @{} arguments'.format(c.cmd))
+                raise InvalidCheck(
+                    'Invalid number of @{} arguments'.format(c.cmd))
 
-        elif c.cmd == 'count': # count test
-            if len(c.args) == 3: # @count <path> <pat> <count> = count test
+        elif c.cmd == 'count':  # count test
+            if len(c.args) == 3:  # @count <path> <pat> <count> = count test
                 expected = int(c.args[2])
                 found = get_tree_count(cache.get_tree(c.args[0]), c.args[1])
-                cerr = "Expected {} occurrences but found {}".format(expected, found)
+                cerr = "Expected {} occurrences but found {}".format(
+                    expected, found)
                 ret = expected == found
             else:
-                raise InvalidCheck('Invalid number of @{} arguments'.format(c.cmd))
+                raise InvalidCheck(
+                    'Invalid number of @{} arguments'.format(c.cmd))
         elif c.cmd == 'valid-html':
             raise InvalidCheck('Unimplemented @valid-html')
 
@@ -413,9 +439,10 @@ def check_command(c, cache):
 
     except FailedCheck as err:
         message = '@{}{} check failed'.format('!' if c.negated else '', c.cmd)
-        print_err(c.lineno, c.context, err.message, message)
+        print_err(c.lineno, c.context, str(err), message)
     except InvalidCheck as err:
-        print_err(c.lineno, c.context, err.message)
+        print_err(c.lineno, c.context, str(err))
+
 
 def check(target, commands):
     cache = CachedFiles(target)
