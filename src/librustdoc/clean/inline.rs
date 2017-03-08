@@ -25,7 +25,7 @@ use rustc::util::nodemap::FxHashSet;
 
 use core::{DocContext, DocAccessLevels};
 use doctree;
-use clean::{self, GetDefId};
+use clean::{self, GetDefId, get_stability, get_deprecation};
 
 use super::Clean;
 
@@ -420,6 +420,11 @@ pub fn build_impl(cx: &DocContext, did: DefId, ret: &mut Vec<clean::Item>) {
     if trait_.def_id() == tcx.lang_items.deref_trait() {
         super::build_deref_target_impls(cx, &trait_items, ret);
     }
+    if let Some(trait_did) = trait_.def_id() {
+        if !trait_did.is_local() {
+            record_extern_trait(cx, trait_did);
+        }
+    }
 
     let provided = trait_.def_id().map(|did| {
         tcx.provided_trait_methods(did)
@@ -575,4 +580,17 @@ fn separate_supertrait_bounds(mut g: clean::Generics)
         }
     });
     (g, ty_bounds)
+}
+
+pub fn record_extern_trait<'a, 'tcx>(cx: &DocContext, did: DefId) {
+    cx.external_traits.borrow_mut().entry(did).or_insert_with(|| clean::Item {
+        name: Some(cx.tcx.item_name(did).to_string()),
+        attrs: load_attrs(cx, did),
+        source: clean::Span::empty(),
+        def_id: did,
+        visibility: Some(clean::Public),
+        stability: get_stability(cx, did),
+        deprecation: get_deprecation(cx, did),
+        inner: clean::TraitItem(build_external_trait(cx, did)),
+    });
 }

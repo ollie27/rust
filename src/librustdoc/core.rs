@@ -55,7 +55,7 @@ pub struct DocContext<'a, 'tcx: 'a> {
     /// Later on moved into `html::render::CACHE_KEY`
     pub renderinfo: RefCell<RenderInfo>,
     /// Later on moved through `clean::Crate` into `html::render::CACHE_KEY`
-    pub external_traits: RefCell<FxHashMap<DefId, clean::Trait>>,
+    pub external_traits: RefCell<FxHashMap<DefId, clean::Item>>,
 
     // The current set of type and lifetime substitutions,
     // for expanding type aliases at the HIR level:
