@@ -21,11 +21,11 @@ pub enum Maybe<A> {
 
 // @has foo/prelude/index.html
 pub mod prelude {
-    // @has foo/prelude/index.html '//code' 'pub use io;'
-    // @has foo/prelude/index.html '//code' 'pub use io::Reader;'
+    // @has foo/prelude/index.html '//code' 'pub use foo::io;'
+    // @has foo/prelude/index.html '//code' 'pub use foo::io::Reader;'
     #[doc(no_inline)] pub use io::{self, Reader};
-    // @has foo/prelude/index.html '//code' 'pub use Maybe;'
-    // @has foo/prelude/index.html '//code' 'pub use Maybe::Just;'
-    // @has foo/prelude/index.html '//code' 'pub use Maybe::Nothing;'
+    // @has foo/prelude/index.html '//code' 'pub use foo::Maybe;'
+    // @has foo/prelude/index.html '//code' 'pub use foo::Maybe::Just;'
+    // @has foo/prelude/index.html '//code' 'pub use foo::Maybe::Nothing;'
     #[doc(no_inline)] pub use Maybe::{self, Just, Nothing};
 }

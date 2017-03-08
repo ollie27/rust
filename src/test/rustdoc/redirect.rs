@@ -17,7 +17,7 @@ extern crate reexp_stripped;
 pub trait Foo {}
 
 // @has redirect/index.html
-// @has - '//code' 'pub use reexp_stripped::Bar'
+// @has - '//code' 'pub use reexp_stripped::hidden::Bar'
 // @has - '//code/a' 'Bar'
 // @has reexp_stripped/hidden/struct.Bar.html
 // @has - '//p/a' '../../reexp_stripped/struct.Bar.html'
@@ -27,7 +27,7 @@ pub use reexp_stripped::Bar;
 impl Foo for Bar {}
 
 // @has redirect/index.html
-// @has - '//code' 'pub use reexp_stripped::Quz'
+// @has - '//code' 'pub use reexp_stripped::private::Quz'
 // @has - '//code/a' 'Quz'
 // @has reexp_stripped/private/struct.Quz.html
 // @has - '//p/a' '../../reexp_stripped/struct.Quz.html'
