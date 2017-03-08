@@ -2897,6 +2897,58 @@ fn render_impl(w: &mut fmt::Formatter, cx: &Context, i: &Impl, link: AssocItemLi
                 render_stability_since_raw(w, since, outer_version)?;
             }
         }
+        // ignore-tidy-linelength
+        let trait_since = trait_item.and_then(clean::Item::stable_since);
+        fn is_newer_version(ver: &str, containing_ver: &str) -> bool {
+            containing_ver.split(".").map(|n| n.parse::<usize>().unwrap()).lt(ver.split(".").map(|n| n.parse::<usize>().unwrap()))
+        }
+        if let (Some(v), Some(c_v)) = (trait_since, since) {
+            if !v.is_empty() && !c_v.is_empty() && is_newer_version(v, c_v) {
+                println!("<br>BEFORE TRAIT ({:?}, {:?}): {}", trait_since, since, i.inner_impl());
+            }
+        }
+        if let (Some(v), Some(c_v)) = (outer_version, since) {
+            if !v.is_empty() && !c_v.is_empty() && is_newer_version(v, c_v) {
+                println!("<br>BEFORE FOR ({:?}, {:?}): {}", outer_version, since, i.inner_impl());
+            }
+        }
+        if let (Some(v), None) = (outer_version, trait_) {
+            for thing in &i.inner_impl().items {
+                if let Some(item_version) = thing.stable_since() {
+                    if !v.is_empty() && !item_version.is_empty() && is_newer_version(v, item_version) {
+                        println!("<br>BEFORE IMPL ({:?}, {:?}): {}", outer_version, thing.stable_since(), i.inner_impl());
+                    }
+                }
+            }
+        }
+        match since {
+            None | Some("") => {
+                if trait_.is_none() {
+                    // if let Some(c_v) = outer_version {
+                    //     if !c_v.is_empty() {
+                    //         println!("<br>STABLE FOR ({:?}, {:?}): {}", outer_version, since, i.inner_impl());
+                    //     }
+                    // }
+                } else {
+                    if let (Some(c_v), Some(t_v)) = (outer_version, trait_since) {
+                        if !c_v.is_empty() && !t_v.is_empty() {
+                            println!("<br>STABLE TRAIT & FOR ({:?}, {:?}, {:?}): {}", trait_since, outer_version, since, i.inner_impl());
+                        }
+                    }
+                    if since.is_none() {
+                        println!("<br>NO STAB ({:?}): {}", since, i.inner_impl());
+                    }
+                }
+            }
+            Some(..) => {
+                if outer_version.is_none() || outer_version == Some("") {
+                    println!("<br>UNSTABLE FOR ({:?}, {:?}): {}", outer_version, since, i.inner_impl());
+                }
+                if trait_since.is_none() || trait_since == Some("") {
+                    println!("<br>UNSTABLE TRAIT ({:?}, {:?}): {}", trait_since, since, i.inner_impl());
+                }
+            }
+        }
         write!(w, "</span>")?;
         write!(w, "</h3>\n")?;
         if let Some(item) = trait_item {
