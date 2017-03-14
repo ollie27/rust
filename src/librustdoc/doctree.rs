@@ -209,6 +209,7 @@ pub struct Trait {
     pub vis: hir::Visibility,
     pub stab: Option<attr::Stability>,
     pub depr: Option<attr::Deprecation>,
+    pub inlined: bool,
 }
 
 pub struct Impl {

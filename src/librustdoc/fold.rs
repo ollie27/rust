@@ -90,7 +90,7 @@ pub trait DocFolder : Sized {
 
     /// don't override!
     fn fold_item_recur(&mut self, item: Item) -> Option<Item> {
-        let Item { attrs, name, source, visibility, def_id, inner, stability, deprecation } = item;
+        let Item { attrs, name, source, visibility, def_id, inner, stability, deprecation, inlined } = item;
 
         let inner = match inner {
             StrippedItem(box i) => StrippedItem(box self.fold_inner_recur(i)),
@@ -99,7 +99,7 @@ pub trait DocFolder : Sized {
 
         Some(Item { attrs: attrs, name: name, source: source, inner: inner,
                     visibility: visibility, stability: stability, deprecation: deprecation,
-                    def_id: def_id })
+                    def_id: def_id, inlined: inlined })
     }
 
     fn fold_mod(&mut self, m: Module) -> Module {

@@ -20,8 +20,12 @@ pub mod __hidden {
     pub use hidden::Foo;
 }
 
+// @has implementors/core/clone/trait.Clone.js 'Bar'
+#[derive(Clone)]
+pub struct Bar;
+
 // @has foo/trait.Clone.html
 // @!has - 'Foo'
-// @has implementors/foo/trait.Clone.js
+// @has implementors/core/clone/trait.Clone.js
 // @!has - 'Foo'
 pub use std::clone::Clone;

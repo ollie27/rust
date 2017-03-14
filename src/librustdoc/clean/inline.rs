@@ -123,6 +123,7 @@ fn try_inline_def(cx: &DocContext, def: Def) -> Option<Vec<clean::Item>> {
         stability: tcx.lookup_stability(did).clean(cx),
         deprecation: tcx.lookup_deprecation(did).clean(cx),
         def_id: did,
+        inlined: true,
     });
     Some(ret)
 }
@@ -325,6 +326,7 @@ pub fn build_impl(cx: &DocContext, did: DefId, ret: &mut Vec<clean::Item>) {
             stability: tcx.lookup_stability(did).clean(cx),
             deprecation: tcx.lookup_deprecation(did).clean(cx),
             def_id: did,
+            inlined: true,
         });
     }
 
@@ -358,7 +360,8 @@ pub fn build_impl(cx: &DocContext, did: DefId, ret: &mut Vec<clean::Item>) {
                     visibility: None,
                     stability: tcx.lookup_stability(item.def_id).clean(cx),
                     deprecation: tcx.lookup_deprecation(item.def_id).clean(cx),
-                    def_id: item.def_id
+                    def_id: item.def_id,
+                    inlined: true,
                 })
             }
             ty::AssociatedKind::Method => {
@@ -405,7 +408,8 @@ pub fn build_impl(cx: &DocContext, did: DefId, ret: &mut Vec<clean::Item>) {
                     visibility: None,
                     stability: tcx.lookup_stability(item.def_id).clean(cx),
                     deprecation: tcx.lookup_deprecation(item.def_id).clean(cx),
-                    def_id: item.def_id
+                    def_id: item.def_id,
+                    inlined: true,
                 })
             }
         }
@@ -445,6 +449,7 @@ pub fn build_impl(cx: &DocContext, did: DefId, ret: &mut Vec<clean::Item>) {
         stability: tcx.lookup_stability(did).clean(cx),
         deprecation: tcx.lookup_deprecation(did).clean(cx),
         def_id: did,
+        inlined: true,
     });
 }
 

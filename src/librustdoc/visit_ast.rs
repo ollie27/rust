@@ -82,7 +82,7 @@ impl<'a, 'tcx> RustdocVisitor<'a, 'tcx> {
                                               hir::Public,
                                               ast::CRATE_NODE_ID,
                                               &krate.module,
-                                              None);
+                                              None, false);
         // attach the crate's exported macros to the top-level module:
         let macro_exports: Vec<_> =
             krate.exported_macros.iter().map(|def| self.visit_local_macro(def)).collect();
@@ -180,7 +180,7 @@ impl<'a, 'tcx> RustdocVisitor<'a, 'tcx> {
     pub fn visit_mod_contents(&mut self, span: Span, attrs: hir::HirVec<ast::Attribute>,
                               vis: hir::Visibility, id: ast::NodeId,
                               m: &hir::Mod,
-                              name: Option<ast::Name>) -> Module {
+                              name: Option<ast::Name>, inlined: bool) -> Module {
         let mut om = Module::new(name);
         om.where_outer = span;
         om.where_inner = m.inner;
@@ -194,7 +194,7 @@ impl<'a, 'tcx> RustdocVisitor<'a, 'tcx> {
         self.inside_public_path &= vis == hir::Public;
         for i in &m.item_ids {
             let item = self.cx.tcx.hir.expect_item(i.id);
-            self.visit_item(item, None, &mut om);
+            self.visit_item(item, None, &mut om, inlined);
         }
         self.inside_public_path = orig_inside_public_path;
         if let Some(exports) = self.cx.export_map.get(&id) {
@@ -315,14 +315,14 @@ impl<'a, 'tcx> RustdocVisitor<'a, 'tcx> {
                         hir::ItemMod(ref m) => {
                             for i in &m.item_ids {
                                 let i = self.cx.tcx.hir.expect_item(i.id);
-                                self.visit_item(i, None, om);
+                                self.visit_item(i, None, om, true);
                             }
                         }
                         hir::ItemEnum(..) => {}
                         _ => { panic!("glob not mapped to a module or enum"); }
                     }
                 } else {
-                    self.visit_item(it, renamed, om);
+                    self.visit_item(it, renamed, om, true);
                 }
                 self.inlining = prev;
                 true
@@ -334,7 +334,7 @@ impl<'a, 'tcx> RustdocVisitor<'a, 'tcx> {
     }
 
     pub fn visit_item(&mut self, item: &hir::Item,
-                      renamed: Option<ast::Name>, om: &mut Module) {
+                      renamed: Option<ast::Name>, om: &mut Module, inlined: bool) {
         debug!("Visiting item {:?}", item);
         let name = renamed.unwrap_or(item.name);
         match item.node {
@@ -405,7 +405,8 @@ impl<'a, 'tcx> RustdocVisitor<'a, 'tcx> {
                                                      item.vis.clone(),
                                                      item.id,
                                                      m,
-                                                     Some(name)));
+                                                     Some(name),
+                                                     inlined));
             },
             hir::ItemEnum(ref ed, ref gen) =>
                 om.enums.push(self.visit_enum_def(item, name, ed, gen)),
@@ -475,6 +476,7 @@ impl<'a, 'tcx> RustdocVisitor<'a, 'tcx> {
                     vis: item.vis.clone(),
                     stab: self.stability(item.id),
                     depr: self.deprecation(item.id),
+                    inlined: inlined,
                 };
                 om.traits.push(t);
             },

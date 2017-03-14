@@ -18,7 +18,7 @@
 use std::fmt;
 use std::iter::repeat;
 
-use rustc::hir::def_id::DefId;
+use rustc::hir::def_id::{LOCAL_CRATE, CRATE_DEF_INDEX, DefId};
 use syntax::abi::Abi;
 use rustc::hir;
 
@@ -56,6 +56,8 @@ pub struct TyParamBounds<'a>(pub &'a [clean::TyParamBound]);
 /// Wrapper struct for emitting a comma-separated list of items
 pub struct CommaSep<'a, T: 'a>(pub &'a [T]);
 pub struct AbiSpace(pub Abi);
+/// Wrapper struct for emitting an Impl without the Trait being hyperlinked
+pub struct ImplUnlinkedTrait<'a>(pub &'a clean::Impl, pub bool);
 
 pub struct HRef<'a> {
     pub did: DefId,
@@ -500,9 +502,9 @@ fn primitive_link(f: &mut fmt::Formatter,
         match m.primitive_locations.get(&prim) {
             Some(&def_id) if def_id.is_local() => {
                 let len = CURRENT_LOCATION_KEY.with(|s| s.borrow().len());
-                let len = if len == 0 {0} else {len - 1};
-                write!(f, "<a class=\"primitive\" href=\"{}primitive.{}.html\">",
+                write!(f, "<a class=\"primitive\" href=\"{}{}/primitive.{}.html\">",
                        repeat("../").take(len).collect::<String>(),
+                       m.paths[&DefId { krate: LOCAL_CRATE, index: CRATE_DEF_INDEX }].0.first().unwrap(),
                        prim.to_url_str())?;
                 needs_termination = true;
             }
@@ -857,10 +859,20 @@ impl fmt::Display for clean::Impl {
 }
 
 // The difference from above is that trait is not hyperlinked.
-pub fn fmt_impl_for_trait_page(i: &clean::Impl,
-                               f: &mut fmt::Formatter,
-                               use_absolute: bool) -> fmt::Result {
-    fmt_impl(i, f, false, use_absolute)
+impl<'a> fmt::Display for ImplUnlinkedTrait<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt_impl(self.0, f, false, self.1)?;
+        for i in &self.0.items {
+            match i.inner {
+                clean::TypedefItem(ref tydef, _) => {
+                    write!(f, "\n    type {} = {}", i.name.as_ref().unwrap(), tydef.type_)?;
+                }
+                clean::MethodItem(..) | clean::AssociatedConstItem(..) => {}
+                _ => unreachable!(),
+            }
+        }
+        Ok(())
+    }
 }
 
 impl fmt::Display for clean::Arguments {

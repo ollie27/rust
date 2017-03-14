@@ -899,7 +899,7 @@
                 var code = $('<code>').append(structs[j]);
                 $.each(code.find('a'), function(idx, a) {
                     var href = $(a).attr('href');
-                    if (href && href.indexOf('http') !== 0) {
+                    if (href && href.indexOf('http:') !== 0 && href.indexOf('https:') !== 0) {
                         $(a).attr('href', rootPath + href);
                     }
                 });

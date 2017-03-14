@@ -69,7 +69,7 @@ use html::escape::Escape;
 use html::format::{ConstnessSpace};
 use html::format::{TyParamBounds, WhereClause, href, AbiSpace};
 use html::format::{VisSpace, Method, UnsafetySpace, MutableSpace};
-use html::format::fmt_impl_for_trait_page;
+use html::format::ImplUnlinkedTrait;
 use html::item_type::ItemType;
 use html::markdown::{self, Markdown, MarkdownHtml};
 use html::{highlight, layout};
@@ -238,8 +238,7 @@ pub struct Cache {
     /// When rendering traits, it's often useful to be able to list all
     /// implementors of the trait, and this mapping is exactly, that: a mapping
     /// of trait ids to the list of known implementors of the trait
-    pub implementors: FxHashMap<DefId, Vec<Implementor>>,
-
+    pub implementors: FxHashMap<DefId, (Option<Vec<String>>, Vec<Implementor>)>,
     /// Cache of where external crate documentation can be found.
     pub extern_locations: FxHashMap<CrateNum, (String, PathBuf, ExternalLocation)>,
 
@@ -740,41 +739,30 @@ fn write_shared(cx: &Context,
 
     // Update the list of all implementors for traits
     let dst = cx.dst.join("implementors");
-    for (&did, imps) in &cache.implementors {
-        // Private modules can leak through to this phase of rustdoc, which
-        // could contain implementations for otherwise private types. In some
-        // rare cases we could find an implementation for an item which wasn't
-        // indexed, so we just skip this step in that case.
-        //
-        // FIXME: this is a vague explanation for why this can't be a `get`, in
-        //        theory it should be...
-        let &(ref remote_path, remote_item_type) = match cache.paths.get(&did) {
-            Some(p) => p,
-            None => match cache.external_paths.get(&did) {
-                Some(p) => p,
-                None => continue,
-            }
-        };
+    try_err!(mkdir(&dst), &dst);
+    for (&trait_did, &(ref real_path, ref imps)) in &cache.implementors {
+        if imps.is_empty() && !trait_did.is_local() {
+            continue;
+        }
 
         let mut implementors = format!(r#"implementors["{}"] = ["#, krate.name);
         for imp in imps {
-            // If the trait and implementation are in the same crate, then
-            // there's no need to emit information about it (there's inlining
-            // going on). If they're in different crates then the crate defining
-            // the trait will be interested in our implementation.
-            if imp.def_id.krate == did.krate { continue }
-            write!(implementors, "{},", as_json(&imp.impl_.to_string())).unwrap();
+            write!(implementors, "{},",
+                   as_json(&ImplUnlinkedTrait(&imp.impl_, false).to_string())).unwrap();
         }
         implementors.push_str("];");
 
         let mut mydst = dst.clone();
-        for part in &remote_path[..remote_path.len() - 1] {
-            mydst.push(part);
-        }
+        let path = if trait_did.is_local() {
+            real_path.as_ref().unwrap()
+        } else {
+            &cache.external_paths[&trait_did].0
+        };
+        mydst.extend(&path[..path.len() - 1]);
         try_err!(fs::create_dir_all(&mydst), &mydst);
         mydst.push(&format!("{}.{}.js",
-                            remote_item_type.css_class(),
-                            remote_path[remote_path.len() - 1]));
+                            ItemType::Trait.css_class(),
+                            path.last().unwrap()));
 
         let mut all_implementors = try_err!(collect(&mydst, &krate.name, "implementors"), &mydst);
         all_implementors.push(implementors);
@@ -997,16 +985,24 @@ impl DocFolder for Cache {
         // trait.
         if let clean::TraitItem(ref t) = item.inner {
             self.traits.entry(item.def_id).or_insert_with(|| t.clone());
+            self.implementors.entry(item.def_id).or_insert((None, vec![]));
+            if !item.inlined {
+                let mut path = self.stack.clone();
+                path.push(item.name.clone().unwrap());
+                self.implementors.get_mut(&item.def_id).unwrap().0 = Some(path);
+            }
         }
 
-        // Collect all the implementors of traits.
-        if let clean::ImplItem(ref i) = item.inner {
-            if let Some(did) = i.trait_.def_id() {
-                self.implementors.entry(did).or_insert(vec![]).push(Implementor {
-                    def_id: item.def_id,
-                    stability: item.stability.clone(),
-                    impl_: i.clone(),
-                });
+        if item.def_id.is_local() {
+            // Collect all the implementors of traits.
+            if let clean::ImplItem(ref i) = item.inner {
+                if let Some(did) = i.trait_.def_id() {
+                    self.implementors.entry(did).or_insert((None, vec![])).1.push(Implementor {
+                        def_id: item.def_id,
+                        stability: item.stability.clone(),
+                        impl_: i.clone(),
+                    });
+                }
             }
         }
 
@@ -2166,56 +2162,54 @@ fn item_trait(w: &mut fmt::Formatter, cx: &Context, it: &clean::Item,
         <h2 id='implementors'>Implementors</h2>
         <ul class='item-list' id='implementors-list'>
     ")?;
-    if let Some(implementors) = cache.implementors.get(&it.def_id) {
-        // The DefId is for the first Type found with that name. The bool is
-        // if any Types with the same name but different DefId have been found.
-        let mut implementor_dups: FxHashMap<&str, (DefId, bool)> = FxHashMap();
-        for implementor in implementors {
-            match implementor.impl_.for_ {
-                clean::ResolvedPath { ref path, did, is_generic: false, .. } |
-                clean::BorrowedRef {
-                    type_: box clean::ResolvedPath { ref path, did, is_generic: false, .. },
-                    ..
-                } => {
-                    let &mut (prev_did, ref mut has_duplicates) =
-                        implementor_dups.entry(path.last_name()).or_insert((did, false));
-                    if prev_did != did {
-                        *has_duplicates = true;
-                    }
+    let implementors = &cache.implementors[&it.def_id].1;
+    // The DefId is for the first Type found with that name. The bool is
+    // if any Types with the same name but different DefId have been found.
+    let mut implementor_dups: FxHashMap<&str, (DefId, bool)> = FxHashMap();
+    for implementor in implementors {
+        match implementor.impl_.for_ {
+            clean::ResolvedPath { ref path, did, is_generic: false, .. } |
+            clean::BorrowedRef {
+                type_: box clean::ResolvedPath { ref path, did, is_generic: false, .. },
+                ..
+            } => {
+                let &mut (prev_did, ref mut has_duplicates) =
+                    implementor_dups.entry(path.last_name()).or_insert((did, false));
+                if prev_did != did {
+                    *has_duplicates = true;
                 }
-                _ => {}
             }
-        }
-
-        for implementor in implementors {
-            write!(w, "<li><code>")?;
-            // If there's already another implementor that has the same abbridged name, use the
-            // full path, for example in `std::iter::ExactSizeIterator`
-            let use_absolute = match implementor.impl_.for_ {
-                clean::ResolvedPath { ref path, is_generic: false, .. } |
-                clean::BorrowedRef {
-                    type_: box clean::ResolvedPath { ref path, is_generic: false, .. },
-                    ..
-                } => implementor_dups[path.last_name()].1,
-                _ => false,
-            };
-            fmt_impl_for_trait_page(&implementor.impl_, w, use_absolute)?;
-            writeln!(w, "</code></li>")?;
+            _ => {}
         }
     }
+
+    for implementor in implementors {
+        // If there's already another implementor that has the same abbridged name, use the
+        // full path, for example in `std::iter::ExactSizeIterator`
+        let use_absolute = match implementor.impl_.for_ {
+            clean::ResolvedPath { ref path, is_generic: false, .. } |
+            clean::BorrowedRef {
+                type_: box clean::ResolvedPath { ref path, is_generic: false, .. },
+                ..
+            } => implementor_dups[path.last_name()].1,
+            _ => false,
+        };
+        writeln!(w, "<li><code>{}</code></li>",
+                 ImplUnlinkedTrait(&implementor.impl_, use_absolute))?;
+    }
     write!(w, "</ul>")?;
+    let full_path = if it.def_id.is_local() {
+        cache.implementors[&it.def_id].0.as_ref().unwrap()
+    } else {
+        &cache.external_paths[&it.def_id].0
+    };
     write!(w, r#"<script type="text/javascript" async
                          src="{root_path}/implementors/{path}/{ty}.{name}.js">
                  </script>"#,
            root_path = vec![".."; cx.current.len()].join("/"),
-           path = if it.def_id.is_local() {
-               cx.current.join("/")
-           } else {
-               let (ref path, _) = cache.external_paths[&it.def_id];
-               path[..path.len() - 1].join("/")
-           },
+           path = full_path[..full_path.len() - 1].join("/"),
            ty = it.type_().css_class(),
-           name = *it.name.as_ref().unwrap())?;
+           name = full_path.last().unwrap())?;
     Ok(())
 }
 
