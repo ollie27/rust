@@ -609,7 +609,7 @@
                               displayPath + '<span class="' + type + '">' +
                               name + '</span></a></td><td>' +
                               '<a href="' + href + '">' +
-                              '<span class="desc">' + escape(item.desc) +
+                              '<span class="desc">' + item.desc +
                               '&nbsp;</span></a></td></tr>';
                 });
             } else {
@@ -694,7 +694,7 @@
                     ty: 1, // == ExternCrate
                     name: crate,
                     path: "",
-                    desc: rawSearchIndex[crate].doc,
+                    desc: rawSearchIndex[crate].docHtml,
                     type: null,
                 });
 
@@ -829,7 +829,7 @@
                     klass += ' current';
                 }
                 var link = $('<a>', {'href': '../' + crates[i] + '/index.html',
-                                     'title': rawSearchIndex[crates[i]].doc,
+                                     'title': rawSearchIndex[crates[i]].docPlain,
                                      'class': klass}).text(crates[i]);
                 ul.append($('<li>').append(link));
             }

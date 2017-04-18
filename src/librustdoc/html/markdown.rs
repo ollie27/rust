@@ -30,6 +30,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::default::Default;
 use std::fmt::{self, Write};
+use std::iter;
 use std::str;
 use syntax::feature_gate::UnstableFeatures;
 use syntax::codemap::Span;
@@ -54,6 +55,7 @@ pub struct MarkdownWithToc<'a>(pub &'a str);
 pub struct MarkdownHtml<'a>(pub &'a str);
 /// A unit struct like `Markdown`, that renders only the first paragraph.
 pub struct MarkdownSummaryLine<'a>(pub &'a str);
+pub struct MarkdownSummaryLineNoLinks<'a>(pub &'a str, pub Option<String>);
 
 /// Returns Some(code) if `s` is a line that should be stripped from
 /// documentation but used in example code. `code` is the portion of
@@ -263,19 +265,30 @@ impl<'a, I: Iterator<Item = Event<'a>>> Iterator for SummaryLine<'a, I> {
     type Item = Event<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.started && self.depth == 0 {
-            return None;
+        loop {
+            if self.started && self.depth == 0 {
+                return None;
+            }
+            if !self.started {
+                self.started = true;
+            }
+            let event = self.inner.next();
+            match event {
+                Some(Event::Start(..)) => {
+                    self.depth += 1;
+                    if self.depth > 1 {
+                        return event;
+                    }
+                }
+                Some(Event::End(..)) => {
+                    self.depth -= 1;
+                    if self.depth > 0 {
+                        return event;
+                    }
+                }
+                _ => return event,
+            }
         }
-        if !self.started {
-            self.started = true;
-        }
-        let event = self.inner.next();
-        match event {
-            Some(Event::Start(..)) => self.depth += 1,
-            Some(Event::End(..)) => self.depth -= 1,
-            _ => {}
-        }
-        event
     }
 }
 
@@ -580,57 +593,47 @@ impl<'a> fmt::Display for MarkdownSummaryLine<'a> {
 
         let mut s = String::new();
 
-        html::push_html(&mut s, SummaryLine::new(p));
+        html::push_html(&mut s, iter::once(Event::Start(Tag::Paragraph)).chain(SummaryLine::new(p).chain(iter::once(Event::End(Tag::Paragraph)))));
 
         fmt.write_str(&s)
     }
 }
 
-pub fn plain_summary_line(md: &str) -> String {
-    struct ParserWrapper<'a> {
-        inner: Parser<'a>,
-        is_in: isize,
-        is_first: bool,
-    }
+impl<'a> fmt::Display for MarkdownSummaryLineNoLinks<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        let MarkdownSummaryLineNoLinks(md, ref link) = *self;
+        // This is actually common enough to special-case
+        if md.is_empty() { return Ok(()) }
 
-    impl<'a> Iterator for ParserWrapper<'a> {
-        type Item = String;
+        let p = Parser::new(md);
 
-        fn next(&mut self) -> Option<String> {
-            let next_event = self.inner.next();
-            if next_event.is_none() {
-                return None
-            }
-            let next_event = next_event.unwrap();
-            let (ret, is_in) = match next_event {
-                Event::Start(Tag::Paragraph) => (None, 1),
-                Event::Start(Tag::Code) => (Some("`".to_owned()), 1),
-                Event::End(Tag::Code) => (Some("`".to_owned()), -1),
-                Event::Start(Tag::Header(_)) => (None, 1),
-                Event::Text(ref s) if self.is_in > 0 => (Some(s.as_ref().to_owned()), 0),
-                Event::End(Tag::Paragraph) | Event::End(Tag::Header(_)) => (None, -1),
-                _ => (None, 0),
-            };
-            if is_in > 0 || (is_in < 0 && self.is_in > 0) {
-                self.is_in += is_in;
-            }
-            if ret.is_some() {
-                self.is_first = false;
-                ret
-            } else {
-                Some(String::new())
+        let mut p = p.filter_map(|event| match event {
+            Event::Start(Tag::Link(..)) | Event::End(Tag::Link(..)) => None,
+            event => Some(event),
+        });
+
+        let mut s = String::new();
+
+        html::push_html(&mut s, SummaryLine::new(&mut p));
+
+        fmt.write_str(&s)?;
+        if let Some(ref url) = *link {
+            if p.next().is_some() {
+                write!(fmt, " <a href=\"{}\">Read more</a>", ::html::escape::Escape(url))?;
             }
         }
+        Ok(())
     }
-    let mut s = String::with_capacity(md.len() * 3 / 2);
-    let mut p = ParserWrapper {
-        inner: Parser::new(md),
-        is_in: 0,
-        is_first: true,
-    };
-    while let Some(t) = p.next() {
-        if !t.is_empty() {
-            s.push_str(&t);
+}
+
+pub fn plain_summary_line(md: &str) -> String {
+    let mut s = String::new();
+    for event in SummaryLine::new(Parser::new(md)) {
+        match event {
+            Event::Text(text) => s.push_str(&text.replace("\n", " ")),
+            Event::SoftBreak | Event::HardBreak => s.push_str(" "),
+            Event::Start(Tag::Code) | Event::End(Tag::Code) => s.push_str("`"),
+            _ => {},
         }
     }
     s
