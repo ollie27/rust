@@ -2605,13 +2605,27 @@ impl Clean<Vec<Item>> for doctree::Import {
         // forcefully don't inline if this is not public or if the
         // #[doc(no_inline)] attribute is present.
         // Don't inline doc(hidden) imports so they can be stripped at a later stage.
-        let denied = self.vis != hir::Public || self.attrs.iter().any(|a| {
+        let mut denied = self.vis != hir::Public || self.attrs.iter().any(|a| {
             a.name().unwrap() == "doc" && match a.meta_item_list() {
                 Some(l) => attr::list_contains_name(&l, "no_inline") ||
                            attr::list_contains_name(&l, "hidden"),
                 None => false,
             }
         });
+        fn inherits_doc_hidden(cx: &DocContext, mut node: ast::NodeId) -> bool {
+            while let Some(id) = cx.tcx.hir.get_enclosing_scope(node) {
+                node = id;
+                if cx.tcx.hir.attrs(node).lists("doc").has_word("hidden") {
+                    return true;
+                }
+                if node == ast::CRATE_NODE_ID {
+                    break;
+                }
+            }
+            false
+        }
+        denied |= inherits_doc_hidden(cx, self.id);
+        denied |= !self.inside_public_path;
         let path = self.path.clean(cx);
         let inner = if self.glob {
             Import::Glob(resolve_use_source(cx, path))

@@ -419,6 +419,7 @@ impl<'a, 'tcx> RustdocVisitor<'a, 'tcx> {
                     path: (**path).clone(),
                     glob: is_glob,
                     whence: item.span,
+                    inside_public_path: self.inside_public_path,
                 });
             }
             hir::ItemMod(ref m) => {

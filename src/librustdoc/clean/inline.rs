@@ -230,14 +230,14 @@ pub fn build_impls(cx: &DocContext, did: DefId) -> Vec<clean::Item> {
     // Primarily, the impls will be used to populate the documentation for this
     // type being inlined, but impls can also be used when generating
     // documentation for primitives (no way to find those specifically).
-    if cx.populated_all_crate_impls.get() {
+    if !cx.populated_all_crate_impls.borrow_mut().insert(did.krate) {
         return impls;
     }
 
-    cx.populated_all_crate_impls.set(true);
-
-    for did in tcx.sess.cstore.implementations_of_trait(None) {
-        build_impl(cx, did, &mut impls);
+    for d in tcx.sess.cstore.implementations_of_trait(None) {
+        if d.krate == did.krate {
+            build_impl(cx, d, &mut impls);
+        }
     }
 
     // Also try to inline primitive impls from other crates.

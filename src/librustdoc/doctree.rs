@@ -257,6 +257,7 @@ pub struct ExternCrate {
     pub whence: Span,
 }
 
+#[derive(Debug)]
 pub struct Import {
     pub name: Name,
     pub id: NodeId,
@@ -265,6 +266,7 @@ pub struct Import {
     pub path: hir::Path,
     pub glob: bool,
     pub whence: Span,
+    pub inside_public_path: bool,
 }
 
 pub fn struct_type_from_def(vdata: &hir::VariantData) -> StructType {

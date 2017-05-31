@@ -12,13 +12,13 @@ use rustc_lint;
 use rustc_driver::{driver, target_features, abort_on_err};
 use rustc::dep_graph::DepGraph;
 use rustc::session::{self, config};
-use rustc::hir::def_id::DefId;
+use rustc::hir::def_id::{DefId, CrateNum};
 use rustc::hir::def::Def;
 use rustc::middle::privacy::AccessLevels;
 use rustc::ty::{self, TyCtxt, GlobalArenas};
 use rustc::hir::map as hir_map;
 use rustc::lint;
-use rustc::util::nodemap::FxHashMap;
+use rustc::util::nodemap::{FxHashMap, FxHashSet};
 use rustc_trans;
 use rustc_trans::back::link;
 use rustc_resolve as resolve;
@@ -29,7 +29,7 @@ use syntax::feature_gate::UnstableFeatures;
 use errors;
 use errors::emitter::ColorConfig;
 
-use std::cell::{RefCell, Cell};
+use std::cell::RefCell;
 use std::mem;
 use std::rc::Rc;
 use std::path::PathBuf;
@@ -47,7 +47,7 @@ pub type ExternalPaths = FxHashMap<DefId, (Vec<String>, clean::TypeKind)>;
 
 pub struct DocContext<'a, 'tcx: 'a> {
     pub tcx: TyCtxt<'a, 'tcx, 'tcx>,
-    pub populated_all_crate_impls: Cell<bool>,
+    pub populated_all_crate_impls: RefCell<FxHashSet<CrateNum>>,
     // Note that external items for which `doc(hidden)` applies to are shown as
     // non-reachable while local items aren't. This is because we're reusing
     // the access levels from crateanalysis.
@@ -194,7 +194,7 @@ pub fn run_core(search_paths: SearchPaths,
 
         let ctxt = DocContext {
             tcx: tcx,
-            populated_all_crate_impls: Cell::new(false),
+            populated_all_crate_impls: Default::default(),
             access_levels: RefCell::new(access_levels),
             external_traits: Default::default(),
             renderinfo: Default::default(),
