@@ -588,6 +588,19 @@ pub struct TyParam {
     pub default: Option<Type>,
 }
 
+impl TyParam {
+    fn get_all_dids(&self) -> Vec<DefId> {
+        let mut ret = Vec::new();
+        for bound in &self.bounds {
+            ret.extend(bound.get_all_dids());
+        }
+        if let Some(ref def) = self.default {
+            ret.extend(def.get_all_dids());
+        }
+        ret
+    }
+}
+
 impl Clean<TyParam> for hir::TyParam {
     fn clean(&self, cx: &DocContext) -> TyParam {
         TyParam {
@@ -647,6 +660,13 @@ impl TyParamBound {
             }
         }
         false
+    }
+
+    fn get_all_dids(&self) -> Vec<DefId> {
+        match *self {
+            RegionBound(..) => Vec::new(),
+            TraitBound(ref pt, ..) => pt.trait_.get_all_dids(),
+        }
     }
 }
 
@@ -968,6 +988,31 @@ pub struct Generics {
     pub lifetimes: Vec<Lifetime>,
     pub type_params: Vec<TyParam>,
     pub where_predicates: Vec<WherePredicate>
+}
+
+impl Generics {
+    pub fn get_all_dids(&self) -> Vec<DefId> {
+        let mut ret = Vec::new();
+        for param in &self.type_params {
+            ret.extend(param.get_all_dids());
+        }
+        for wher in &self.where_predicates {
+            match *wher {
+                WherePredicate::BoundPredicate { ref ty, ref bounds } => {
+                    ret.extend(ty.get_all_dids());
+                    for bound in bounds {
+                        ret.extend(bound.get_all_dids());
+                    }
+                }
+                WherePredicate::RegionPredicate { .. } => {}
+                WherePredicate::EqPredicate { ref lhs, ref rhs } => {
+                    ret.extend(lhs.get_all_dids());
+                    ret.extend(rhs.get_all_dids());
+                }
+            }
+        }
+        ret
+    }
 }
 
 impl Clean<Generics> for hir::Generics {
@@ -1594,6 +1639,64 @@ impl Type {
         match *self {
             Generic(ref name) => name == "Self",
             _ => false
+        }
+    }
+
+    pub fn get_all_dids(&self) -> Vec<DefId> {
+        match *self {
+            ResolvedPath { ref typarams, did, is_generic, .. } => {
+                let mut ret = Vec::new();
+                if !is_generic {
+                    ret.push(did);
+                }
+                if let &Some(ref v) = typarams {
+                    for bound in v {
+                        ret.extend(bound.get_all_dids());
+                    }
+                }
+                ret
+            }
+            Generic(..) => Vec::new(),
+            Primitive(..) => Vec::new(),
+            BareFunction(box BareFunctionDecl { ref generics, decl: FnDecl { inputs: Arguments { ref values }, ref output, .. }, .. }) => {
+                let mut ret = Vec::new();
+                ret.extend(generics.get_all_dids());
+                for arg in values {
+                    ret.extend(arg.type_.get_all_dids());
+                }
+                match *output {
+                    Return(ref ty) => ret.extend(ty.get_all_dids()),
+                    DefaultReturn => {}
+                }
+                ret
+            }
+            Tuple(ref types) => {
+                let mut ret = Vec::new();
+                for ty in types {
+                    ret.extend(ty.get_all_dids());
+                }
+                ret
+            }
+            Vector(box ref ty) => ty.get_all_dids(),
+            FixedVector(box ref ty, ..) => ty.get_all_dids(),
+            Never => Vec::new(),
+            Unique(box ref ty) => ty.get_all_dids(),
+            RawPointer(_, box ref ty) => ty.get_all_dids(),
+            BorrowedRef { box ref type_, .. } => type_.get_all_dids(),
+            QPath { box ref self_type, box ref trait_, .. } => {
+                let mut ret = Vec::new();
+                ret.extend(self_type.get_all_dids());
+                ret.extend(trait_.get_all_dids());
+                ret
+            }
+            Infer => Vec::new(),
+            ImplTrait(ref bounds) => {
+                let mut ret = Vec::new();
+                for bound in bounds {
+                    ret.extend(bound.get_all_dids());
+                }
+                ret
+            }
         }
     }
 }

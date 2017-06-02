@@ -13,7 +13,7 @@ use rustc::middle::privacy::AccessLevels;
 use rustc::util::nodemap::DefIdSet;
 use std::mem;
 
-use clean::{self, GetDefId, Item};
+use clean::{self, Item};
 use fold;
 use fold::FoldItem::Strip;
 use plugins;
@@ -174,14 +174,19 @@ impl<'a> fold::DocFolder for ImplStripper<'a> {
             if imp.trait_.is_none() && imp.items.is_empty() {
                 return None;
             }
-            if let Some(did) = imp.for_.def_id() {
-                if did.is_local() && !imp.for_.is_generic() &&
-                    !self.retained.contains(&did)
-                {
+            for did in imp.for_.get_all_dids() {
+                if did.is_local() && !self.retained.contains(&did) {
                     return None;
                 }
             }
-            if let Some(did) = imp.trait_.def_id() {
+            if let Some(ref trait_) = imp.trait_ {
+                for did in trait_.get_all_dids() {
+                    if did.is_local() && !self.retained.contains(&did) {
+                        return None;
+                    }
+                }
+            }
+            for did in imp.generics.get_all_dids() {
                 if did.is_local() && !self.retained.contains(&did) {
                     return None;
                 }
