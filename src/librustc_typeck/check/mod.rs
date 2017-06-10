@@ -2581,7 +2581,7 @@ impl<'a, 'gcx, 'tcx> FnCtxt<'a, 'gcx, 'tcx> {
             ast::LitKind::Str(..) => tcx.mk_static_str(),
             ast::LitKind::ByteStr(ref v) => {
                 tcx.mk_imm_ref(tcx.types.re_static,
-                                tcx.mk_array(tcx.types.u8, v.len()))
+                                tcx.mk_array(tcx.types.u8, v.len() as u64))
             }
             ast::LitKind::Byte(_) => tcx.types.u8,
             ast::LitKind::Char(_) => tcx.types.char,
@@ -3764,7 +3764,7 @@ impl<'a, 'gcx, 'tcx> FnCtxt<'a, 'gcx, 'tcx> {
               } else {
                   self.next_ty_var(TypeVariableOrigin::TypeInference(expr.span))
               };
-              tcx.mk_array(element_ty, args.len())
+              tcx.mk_array(element_ty, args.len() as u64)
           }
           hir::ExprRepeat(ref element, count) => {
             let count = eval_length(self.tcx, count, "repeat count")

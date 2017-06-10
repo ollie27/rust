@@ -417,7 +417,8 @@ fn all_constructors<'a, 'tcx: 'a>(cx: &mut MatchCheckCtxt<'a, 'tcx>,
             if length > 0 && cx.is_uninhabited(sub_ty) {
                 vec![]
             } else {
-                vec![Slice(length)]
+                assert_eq!(length, length as usize as u64);
+                vec![Slice(length as usize)]
             }
         }
         ty::TyAdt(def, substs) if def.is_enum() && def.variants.len() != 1 => {
@@ -720,7 +721,10 @@ fn pat_constructors<'tcx>(_cx: &mut MatchCheckCtxt,
         PatternKind::Range { ref lo, ref hi, ref end } =>
             Some(vec![ConstantRange(lo.clone(), hi.clone(), end.clone())]),
         PatternKind::Array { .. } => match pcx.ty.sty {
-            ty::TyArray(_, length) => Some(vec![Slice(length)]),
+            ty::TyArray(_, length) => {
+                assert_eq!(length, length as usize as u64);
+                Some(vec![Slice(length as usize)])
+            }
             _ => span_bug!(pat.span, "bad ty {:?} for array pattern", pcx.ty)
         },
         PatternKind::Slice { ref prefix, ref slice, ref suffix } => {

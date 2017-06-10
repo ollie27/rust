@@ -34,7 +34,7 @@ pub enum TypeError<'tcx> {
     AbiMismatch(ExpectedFound<abi::Abi>),
     Mutability,
     TupleSize(ExpectedFound<usize>),
-    FixedArraySize(ExpectedFound<usize>),
+    FixedArraySize(ExpectedFound<u64>),
     ArgCount,
     RegionsDoesNotOutlive(Region<'tcx>, Region<'tcx>),
     RegionsNotSame(Region<'tcx>, Region<'tcx>),

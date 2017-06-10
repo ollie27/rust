@@ -526,7 +526,7 @@ impl<'a, 'gcx, 'tcx> PatternContext<'a, 'gcx, 'tcx> {
 
             ty::TyArray(_, len) => {
                 // fixed-length array
-                assert!(len >= prefix.len() + suffix.len());
+                assert!(len >= (prefix.len() + suffix.len()) as u64);
                 PatternKind::Array { prefix: prefix, slice: slice, suffix: suffix }
             }
 

@@ -223,7 +223,7 @@ impl<'a, 'gcx, 'tcx> ConstEvalErr<'tcx> {
 pub fn eval_length(tcx: TyCtxt,
                    count: hir::BodyId,
                    reason: &str)
-                   -> Result<usize, ErrorReported>
+                   -> Result<u64, ErrorReported>
 {
     let count_expr = &tcx.hir.body(count).value;
     let count_def_id = tcx.hir.body_owner_def_id(count);
@@ -231,8 +231,7 @@ pub fn eval_length(tcx: TyCtxt,
     match tcx.at(count_expr.span).const_eval((count_def_id, substs)) {
         Ok(Integral(Usize(count))) => {
             let val = count.as_u64(tcx.sess.target.uint_type);
-            assert_eq!(val as usize as u64, val);
-            Ok(val as usize)
+            Ok(val)
         },
         Ok(_) |
         Err(ConstEvalErr { kind: ErrKind::TypeckError, .. }) => Err(ErrorReported),

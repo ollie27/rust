@@ -70,7 +70,7 @@ impl<'a, 'gcx, 'tcx> LvalueTy<'tcx> {
                 LvalueTy::Ty {
                     ty: match ty.sty {
                         ty::TyArray(inner, size) => {
-                            tcx.mk_array(inner, size-(from as usize)-(to as usize))
+                            tcx.mk_array(inner, size-u64::from(from)-u64::from(to))
                         }
                         ty::TySlice(..) => ty,
                         _ => {
@@ -141,8 +141,7 @@ impl<'tcx> Rvalue<'tcx> {
             Rvalue::Repeat(ref operand, ref count) => {
                 let op_ty = operand.ty(mir, tcx);
                 let count = count.as_u64(tcx.sess.target.uint_type);
-                assert_eq!(count as usize as u64, count);
-                tcx.mk_array(op_ty, count as usize)
+                tcx.mk_array(op_ty, count)
             }
             Rvalue::Ref(reg, bk, ref lv) => {
                 let lv_ty = lv.ty(mir, tcx).to_ty(tcx);
@@ -185,7 +184,7 @@ impl<'tcx> Rvalue<'tcx> {
             Rvalue::Aggregate(ref ak, ref ops) => {
                 match **ak {
                     AggregateKind::Array(ty) => {
-                        tcx.mk_array(ty, ops.len())
+                        tcx.mk_array(ty, ops.len() as u64)
                     }
                     AggregateKind::Tuple => {
                         tcx.mk_tup(

@@ -529,7 +529,7 @@ pub fn type_metadata<'a, 'tcx>(cx: &CrateContext<'a, 'tcx>,
             MetadataCreationResult::new(basic_type_metadata(cx, t), false)
         }
         ty::TyArray(typ, len) => {
-            fixed_vec_metadata(cx, unique_type_id, typ, Some(len as u64), usage_site_span)
+            fixed_vec_metadata(cx, unique_type_id, typ, Some(len), usage_site_span)
         }
         ty::TySlice(typ) => {
             fixed_vec_metadata(cx, unique_type_id, typ, None, usage_site_span)

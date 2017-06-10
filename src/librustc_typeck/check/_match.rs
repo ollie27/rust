@@ -256,7 +256,7 @@ impl<'a, 'gcx, 'tcx> FnCtxt<'a, 'gcx, 'tcx> {
                 let expected_ty = self.structurally_resolved_type(pat.span, expected);
                 let (inner_ty, slice_ty) = match expected_ty.sty {
                     ty::TyArray(inner_ty, size) => {
-                        let min_len = before.len() + after.len();
+                        let min_len = (before.len() + after.len()) as u64;
                         if slice.is_none() {
                             if min_len != size {
                                 struct_span_err!(

@@ -124,7 +124,7 @@ pub enum TypeVariants<'tcx> {
     TyStr,
 
     /// An array with the given length. Written as `[T; n]`.
-    TyArray(Ty<'tcx>, usize),
+    TyArray(Ty<'tcx>, u64),
 
     /// The pointee of an array slice.  Written as `[T]`.
     TySlice(Ty<'tcx>),

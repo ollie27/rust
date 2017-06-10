@@ -415,9 +415,7 @@ fn eval_const_expr_partial<'a, 'tcx>(cx: &ConstContext<'a, 'tcx>,
                 if let Some(elem) = v.get(idx as usize) {
                     elem.clone()
                 } else {
-                    let n = v.len() as u64;
-                    assert_eq!(n as usize as u64, n);
-                    signal!(e, IndexOutOfBounds { len: n, index: idx })
+                    signal!(e, IndexOutOfBounds { len: v.len() as u64, index: idx })
                 }
             }
 
@@ -441,7 +439,7 @@ fn eval_const_expr_partial<'a, 'tcx>(cx: &ConstContext<'a, 'tcx>,
       }
       hir::ExprRepeat(ref elem, _) => {
           let n = match ety.sty {
-            ty::TyArray(_, n) => n as u64,
+            ty::TyArray(_, n) => n,
             _ => span_bug!(e.span, "typeck error")
           };
           Repeat(Box::new(cx.eval(elem)?), n)
@@ -618,7 +616,7 @@ fn cast_const<'a, 'tcx>(tcx: TyCtxt<'a, 'tcx, 'tcx>,
                 Err(ErrKind::UnimplementedConstVal("casting a bytestr to a raw ptr"))
             },
             ty::TyRef(_, ty::TypeAndMut { ref ty, mutbl: hir::MutImmutable }) => match ty.sty {
-                ty::TyArray(ty, n) if ty == tcx.types.u8 && n == b.len() => Ok(ByteStr(b)),
+                ty::TyArray(ty, n) if ty == tcx.types.u8 && n == b.len() as u64 => Ok(ByteStr(b)),
                 ty::TySlice(_) => {
                     Err(ErrKind::UnimplementedConstVal("casting a bytestr to slice"))
                 },

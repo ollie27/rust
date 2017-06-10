@@ -1344,7 +1344,7 @@ impl<'a, 'gcx, 'tcx> TyCtxt<'a, 'gcx, 'tcx> {
         self.mk_imm_ptr(self.mk_nil())
     }
 
-    pub fn mk_array(self, ty: Ty<'tcx>, n: usize) -> Ty<'tcx> {
+    pub fn mk_array(self, ty: Ty<'tcx>, n: u64) -> Ty<'tcx> {
         self.mk_ty(TyArray(ty, n))
     }
 

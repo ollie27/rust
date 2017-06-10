@@ -143,7 +143,6 @@ pub fn in_memory_type_of<'a, 'tcx>(cx: &CrateContext<'a, 'tcx>, t: Ty<'tcx>) -> 
       }
 
       ty::TyArray(ty, size) => {
-          let size = size as u64;
           let llty = in_memory_type_of(cx, ty);
           Type::array(&llty, size)
       }

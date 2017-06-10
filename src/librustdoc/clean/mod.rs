@@ -1511,7 +1511,7 @@ pub enum Type {
     BareFunction(Box<BareFunctionDecl>),
     Tuple(Vec<Type>),
     Slice(Box<Type>),
-    Array(Box<Type>, usize),
+    Array(Box<Type>, u64),
     Never,
     Unique(Box<Type>),
     RawPointer(Mutability, Box<Type>),
