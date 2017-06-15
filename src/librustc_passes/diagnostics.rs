@@ -147,7 +147,7 @@ E0379: r##"
 Trait methods cannot be declared `const` by design. For more information, see
 [RFC 911].
 
-[RFC 911]: https://github.com/rust-lang/rfcs/pull/911
+[RFC 911]: https://github.com/rust-lang/rfcs/blob/master/text/0911-const-fn.md
 "##,
 
 E0449: r##"

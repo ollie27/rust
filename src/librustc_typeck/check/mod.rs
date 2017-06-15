@@ -2424,6 +2424,7 @@ impl<'a, 'gcx, 'tcx> FnCtxt<'a, 'gcx, 'tcx> {
             let tuple_type = self.structurally_resolved_type(sp, fn_inputs[0]);
             match tuple_type.sty {
                 ty::TyTuple(arg_types, _) if arg_types.len() != args.len() => {
+                    __diagnostic_used!(E0057);
                     parameter_count_error(tcx.sess, sp_args, arg_types.len(), args.len(),
                                           "E0057", false, def_span);
                     expected_arg_tys = &[];
@@ -2453,12 +2454,14 @@ impl<'a, 'gcx, 'tcx> FnCtxt<'a, 'gcx, 'tcx> {
             if supplied_arg_count >= expected_arg_count {
                 fn_inputs.to_vec()
             } else {
+                __diagnostic_used!(E0060);
                 parameter_count_error(tcx.sess, sp_args, expected_arg_count,
                                       supplied_arg_count, "E0060", true, def_span);
                 expected_arg_tys = &[];
                 self.err_args(supplied_arg_count)
             }
         } else {
+            __diagnostic_used!(E0061);
             parameter_count_error(tcx.sess, sp_args, expected_arg_count,
                                   supplied_arg_count, "E0061", false, def_span);
             expected_arg_tys = &[];

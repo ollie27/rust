@@ -34,7 +34,7 @@ struct Bar<'a> {
 
 More details can be found in [RFC 438].
 
-[RFC 438]: https://github.com/rust-lang/rfcs/pull/438
+[RFC 438]: https://github.com/rust-lang/rfcs/blob/master/text/0438-precedence-of-plus.md
 "##,
 
 E0534: r##"
@@ -102,8 +102,8 @@ pub fn something() {}
 fn main() {}
 ```
 
-For more information about the inline attribute, https:
-read://doc.rust-lang.org/reference.html#inline-attributes
+For more information about the inline attribute, read:
+https://doc.rust-lang.org/reference.html#inline-attributes
 "##,
 
 E0536: r##"

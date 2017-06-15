@@ -32,7 +32,6 @@
 #![feature(box_syntax)]
 #![feature(i128_type)]
 #![feature(quote)]
-#![feature(rustc_diagnostic_macros)]
 #![feature(slice_patterns)]
 
 #[macro_use]

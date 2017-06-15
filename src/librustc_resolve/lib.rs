@@ -226,6 +226,7 @@ fn resolve_struct_error<'sess, 'a>(resolver: &'sess Resolver,
             let target_sp = binding_error.target.iter().map(|x| *x).collect::<Vec<_>>();
             let msp = MultiSpan::from_spans(target_sp.clone());
             let msg = format!("variable `{}` is not bound in all patterns", binding_error.name);
+            __diagnostic_used!(E0408);
             let mut err = resolver.session.struct_span_err_with_code(msp, &msg, "E0408");
             for sp in target_sp {
                 err.span_label(sp, format!("pattern doesn't bind `{}`", binding_error.name));

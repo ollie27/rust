@@ -25,7 +25,6 @@
 #![feature(box_syntax)]
 #![feature(libc)]
 #![feature(quote)]
-#![feature(rustc_diagnostic_macros)]
 #![feature(set_stdio)]
 
 extern crate arena;

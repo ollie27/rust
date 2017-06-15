@@ -136,7 +136,8 @@ A function call isn't allowed in the const's initialization expression
 because the expression's value must be known at compile-time. Erroneous code
 example:
 
-```compile_fail
+```compile_fail,E0019
+// FIXME: Some expected error codes were not found: ["E0019"]
 enum Test {
     V1
 }
@@ -150,7 +151,7 @@ impl Test {
 fn main() {
     const FOO: Test = Test::V1;
 
-    const A: i32 = FOO.test(); // You can't call Test::func() here!
+    const A: i32 = FOO.test(); // You can't call Test::test() here!
 }
 ```
 
