@@ -458,54 +458,45 @@ pub fn href(did: DefId) -> Option<(String, ItemType, Vec<String>)> {
 /// Used when rendering a `ResolvedPath` structure. This invokes the `path`
 /// rendering function with the necessary arguments for linking to a local path.
 fn resolved_path(w: &mut fmt::Formatter, did: DefId, path: &clean::Path,
-                 print_all: bool, use_absolute: bool) -> fmt::Result {
-    let last = path.segments.last().unwrap();
-    let rel_root = match &*path.segments[0].name {
-        "self" => Some("./".to_string()),
-        _ => None,
+                 use_absolute: bool) -> fmt::Result {
+    let (fqp, name) = if let Some(&(ref path, _)) = cache().paths.get(&did) {
+        (path[..path.len() - 1].to_vec(), path.last().unwrap().clone())
+    } else {
+        if let Some(&(ref path, _)) = cache().external_paths.get(&did) {
+            (path[..path.len() - 1].to_vec(), path.last().unwrap().clone())
+        } else {
+            (path.segments[..path.segments.len() - 1].iter().map(|x| &x.name).cloned().collect(), path.segments.last().unwrap().name.clone())
+        }
     };
 
-    if print_all {
-        let amt = path.segments.len() - 1;
-        match rel_root {
-            Some(mut root) => {
-                for seg in &path.segments[..amt] {
-                    if "super" == seg.name || "self" == seg.name || w.alternate() {
-                        write!(w, "{}::", seg.name)?;
-                    } else {
-                        root.push_str(&seg.name);
-                        root.push_str("/");
-                        write!(w, "<a class=\"mod\" href=\"{}index.html\">{}</a>::",
-                               root,
-                               seg.name)?;
-                    }
-                }
-            }
-            None => {
-                for seg in &path.segments[..amt] {
-                    write!(w, "{}::", seg.name)?;
-                }
-            }
+    if use_absolute {
+        for seg in fqp {
+            write!(w, "{}::", seg)?;
         }
     }
-    if w.alternate() {
-        write!(w, "{:#}{:#}", HRef::new(did, &last.name), last.params)?;
-    } else {
-        let path = if use_absolute {
-            match href(did) {
-                Some((_, _, fqp)) => {
-                    format!("{}::{}",
-                            fqp[..fqp.len() - 1].join("::"),
-                            HRef::new(did, fqp.last().unwrap()))
+    match path.def {
+        hir::def::Def::Variant(..) => {
+            if let Some((url, _, fqp)) = href(did) {
+                if use_absolute {
+                    write!(w, "{}::", name)?;
                 }
-                None => format!("{}", HRef::new(did, &last.name)),
+                write!(w,
+                       "<a class=\"{shortty}\" href=\"{url}#{shortty}.{name}\" \
+                       title=\"{shortty} {path}::{name}\">{name}</a>",
+                       shortty = ItemType::Variant,
+                       url = url,
+                       name = path.segments.last().unwrap().name,
+                       path = fqp.join("::"))?;
+            } else {
+                write!(w, "{}", path.segments.last().unwrap().name)?;
             }
-        } else {
-            format!("{}", HRef::new(did, &last.name))
-        };
-        write!(w, "{}{}", path, last.params)?;
+        }
+        _ => {
+            fmt::Display::fmt(&HRef::new(did, &name), w)?;
+        }
     }
-    Ok(())
+
+    fmt::Display::fmt(&path.segments.last().unwrap().params, w)
 }
 
 fn primitive_link(f: &mut fmt::Formatter,
@@ -594,7 +585,7 @@ fn fmt_type(t: &clean::Type, f: &mut fmt::Formatter, use_absolute: bool) -> fmt:
         }
         clean::ResolvedPath{ did, ref typarams, ref path, is_generic } => {
             // Paths like T::Output and Self::Output should be rendered with all segments
-            resolved_path(f, did, path, is_generic, use_absolute)?;
+            resolved_path(f, did, path, is_generic | use_absolute)?;
             tybounds(f, typarams)
         }
         clean::Infer => write!(f, "_"),
@@ -1028,7 +1019,7 @@ impl fmt::Display for clean::Import {
 impl fmt::Display for clean::ImportSource {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.did {
-            Some(did) => resolved_path(f, did, &self.path, true, false),
+            Some(did) => resolved_path(f, did, &self.path, true),
             _ => {
                 for (i, seg) in self.path.segments.iter().enumerate() {
                     if i > 0 {
