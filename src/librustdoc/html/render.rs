@@ -1409,6 +1409,45 @@ impl Context {
                     try_err!(layout::redirect(&mut redirect_out, file_name), &redir_dst);
                 }
             }
+        } else if let clean::ImportItem(ref i) = item.inner {
+            if !self.render_redirect_pages {
+                match *i {
+                    clean::Import::Simple(ref real_name, clean::ImportSource { ref path, did: Some(did) }) => {
+                        if let hir::def::Def::Variant(..) = path.def {
+                            return Ok(());
+                        }
+                        if let Some(&(ref names, ty)) = cache().paths.get(&did) {
+                            let redir_name = item_path(ty, &real_name);
+                            let redir_dst = self.dst.join(redir_name);
+                            let mut url = self.root_path();
+                            for name in &names[..names.len() - 1] {
+                                url.push_str(name);
+                                url.push_str("/");
+                            }
+                            url.push_str(&item_path(ty, names.last().unwrap()));
+                            if let ItemType::Module = ty {
+                                try_err!(fs::create_dir_all(&redir_dst.parent().unwrap()), &redir_dst.parent().unwrap());
+                                let mut redirect_out = try_err!(File::create(&redir_dst), &redir_dst);
+                                try_err!(layout::redirect(&mut redirect_out, &format!("../{}", url)), &redir_dst);
+                            } else {
+                                let mut redirect_out = try_err!(File::create(&redir_dst), &redir_dst);
+                                try_err!(layout::redirect(&mut redirect_out, &url), &redir_dst);
+                            }
+
+                            // Redirect from a sane URL using the namespace to Rustdoc's
+                            // URL for the page.
+                            let redir_name = format!("{}.{}.html", real_name, ty.name_space());
+                            let redir_dst = self.dst.join(redir_name);
+                            if let Ok(mut redirect_out) = OpenOptions::new().create_new(true)
+                                                                            .write(true)
+                                                                            .open(&redir_dst) {
+                                try_err!(layout::redirect(&mut redirect_out, &url), &redir_dst);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
         }
         Ok(())
     }
