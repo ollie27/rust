@@ -114,19 +114,32 @@ fn check(cache: &mut Cache,
     // Unfortunately we're not 100% full of valid links today to we need a few
     // whitelists to get this past `make check` today.
     // FIXME(#32129)
-    if file.ends_with("std/string/struct.String.html") {
+    if file.ends_with("std/string/struct.String.html") ||
+       file.ends_with("flate/struct.Bytes.html") ||
+       file.ends_with("rustc/ty/enum.Attributes.html") ||
+       file.ends_with("rustc/ty/struct.Slice.html") ||
+       file.ends_with("rustc/ty/struct.SymbolName.html") ||
+       file.ends_with("syntax/ast/struct.ThinVec.html") ||
+       file.ends_with("syntax/symbol/struct.InternedString.html") ||
+       file.ends_with("syntax/util/struct.RcSlice.html") ||
+       file.ends_with("syntax/util/struct.ThinVec.html") ||
+       file.ends_with("syntax_pos/symbol/struct.InternedString.html") {
         return None;
     }
     // FIXME(#32553)
-    if file.ends_with("string/struct.String.html") {
+    if file.ends_with("alloc/string/struct.String.html") ||
+       file.ends_with("collections/string/struct.String.html") {
         return None;
     }
     // FIXME(#32130)
-    if file.ends_with("btree_set/struct.BTreeSet.html") ||
-       file.ends_with("struct.BTreeSet.html") ||
-       file.ends_with("btree_map/struct.BTreeMap.html") ||
-       file.ends_with("hash_map/struct.HashMap.html") ||
-       file.ends_with("hash_set/struct.HashSet.html") {
+    if file.ends_with("alloc/btree_set/struct.BTreeSet.html") ||
+       file.ends_with("collections/btree_set/struct.BTreeSet.html") ||
+       file.ends_with("std/collections/btree_set/struct.BTreeSet.html") ||
+       file.ends_with("alloc/btree_map/struct.BTreeMap.html") ||
+       file.ends_with("collections/btree_map/struct.BTreeMap.html") ||
+       file.ends_with("std/collections/btree_map/struct.BTreeMap.html") ||
+       file.ends_with("std/collections/hash_map/struct.HashMap.html") ||
+       file.ends_with("std/collections/hash_set/struct.HashSet.html") {
         return None;
     }
 
