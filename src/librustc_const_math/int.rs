@@ -211,8 +211,8 @@ impl ConstInt {
         }
     }
 
-    pub fn to_f32(self) -> f32 {
-        match self {
+    pub fn to_f32(self) -> Option<f32> {
+        Some(match self {
             I8(i) => i as f32,
             I16(i) => i as f32,
             I32(i) => i as f32,
@@ -225,11 +225,16 @@ impl ConstInt {
             U16(i) => i as f32,
             U32(i) => i as f32,
             U64(i) => i as f32,
-            U128(i) => i as f32,
+            U128(i) => {
+                if i >= 0b1111111111111111111111111 << 103 {
+                    return None;
+                }
+                i as f32
+            }
             Usize(Us16(i)) => i as f32,
             Usize(Us32(i)) => i as f32,
             Usize(Us64(i)) => i as f32,
-        }
+        })
     }
 
     pub fn to_f64(self) -> f64 {

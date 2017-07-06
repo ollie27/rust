@@ -538,8 +538,6 @@ fn cast_const_int<'a, 'tcx>(tcx: TyCtxt<'a, 'tcx, 'tcx>,
                             -> CastResult<'tcx> {
     let v = val.to_u128_unchecked();
     match ty.sty {
-        ty::TyBool if v == 0 => Ok(Bool(false)),
-        ty::TyBool if v == 1 => Ok(Bool(true)),
         ty::TyInt(ast::IntTy::I8) => Ok(Integral(I8(v as i128 as i8))),
         ty::TyInt(ast::IntTy::I16) => Ok(Integral(I16(v as i128 as i16))),
         ty::TyInt(ast::IntTy::I32) => Ok(Integral(I32(v as i128 as i32))),
@@ -557,10 +555,10 @@ fn cast_const_int<'a, 'tcx>(tcx: TyCtxt<'a, 'tcx, 'tcx>,
             Ok(Integral(Usize(ConstUsize::new_truncating(v, tcx.sess.target.uint_type))))
         },
         ty::TyFloat(ast::FloatTy::F64) => Ok(Float(F64(val.to_f64()))),
-        ty::TyFloat(ast::FloatTy::F32) => Ok(Float(F32(val.to_f32()))),
+        ty::TyFloat(ast::FloatTy::F32) => val.to_f32().map(F32).map(Float).ok_or(CannotCast),
         ty::TyRawPtr(_) => Err(ErrKind::UnimplementedConstVal("casting an address to a raw ptr")),
         ty::TyChar => match val {
-            U8(u) => Ok(Char(u as char)),
+            U8(u) => Ok(Char(char::from(u))),
             _ => bug!(),
         },
         _ => Err(CannotCast),
@@ -571,28 +569,61 @@ fn cast_const_float<'a, 'tcx>(tcx: TyCtxt<'a, 'tcx, 'tcx>,
                               val: ConstFloat,
                               ty: Ty<'tcx>) -> CastResult<'tcx> {
     match ty.sty {
-        ty::TyInt(_) | ty::TyUint(_) => {
+        ty::TyUint(uint_ty) => {
             let i = match val {
-                F32(f) if f >= 0.0 => U128(f as u128),
-                F64(f) if f >= 0.0 => U128(f as u128),
-
-                F32(f) => I128(f as i128),
-                F64(f) => I128(f as i128)
+                F32(f) if -1.0 < f && f < 128f32.exp2() => f as u128,
+                F64(f) if -1.0 < f && f < 128f64.exp2() => f as u128,
+                _ => return Err(CannotCast),
             };
-
-            if let (I128(_), &ty::TyUint(_)) = (i, &ty.sty) {
-                return Err(CannotCast);
+            match uint_ty {
+                ast::UintTy::U8 if i as u8 as u128 == i => Ok(Integral(U8(i as u8))),
+                ast::UintTy::U16 if i as u16 as u128 == i => Ok(Integral(U16(i as u16))),
+                ast::UintTy::U32 if i as u32 as u128 == i => Ok(Integral(U32(i as u32))),
+                ast::UintTy::U64 if i as u64 as u128 == i => Ok(Integral(U64(i as u64))),
+                ast::UintTy::U128 => Ok(Integral(U128(i))),
+                ast::UintTy::Us if i as u64 as u128 == i => {
+                    ConstUsize::new(i as u64, tcx.sess.target.uint_type)
+                        .map(Usize)
+                        .map(Integral)
+                        .map_err(|_| CannotCast)
+                }
+                _ => Err(CannotCast),
             }
-
-            cast_const_int(tcx, i, ty)
+        }
+        ty::TyInt(int_ty) => {
+            let i = match val {
+                F32(f) if -127f32.exp2() <= f && f < 127f32.exp2() => f as i128,
+                F64(f) if -127f64.exp2() <= f && f < 127f64.exp2() => f as i128,
+                _ => return Err(CannotCast),
+            };
+            match int_ty {
+                ast::IntTy::I8 if i as i8 as i128 == i => Ok(Integral(I8(i as i8))),
+                ast::IntTy::I16 if i as i16 as i128 == i => Ok(Integral(I16(i as i16))),
+                ast::IntTy::I32 if i as i32 as i128 == i => Ok(Integral(I32(i as i32))),
+                ast::IntTy::I64 if i as i64 as i128 == i => Ok(Integral(I64(i as i64))),
+                ast::IntTy::I128 => Ok(Integral(I128(i))),
+                ast::IntTy::Is if i as i64 as i128 == i => {
+                    ConstIsize::new(i as i64, tcx.sess.target.int_type)
+                        .map(Isize)
+                        .map(Integral)
+                        .map_err(|_| CannotCast)
+                }
+                _ => Err(CannotCast),
+            }
         }
         ty::TyFloat(ast::FloatTy::F64) => Ok(Float(F64(match val {
-            F32(f) => f as f64,
-            F64(f) => f
+            F32(f) => f64::from(f),
+            F64(f) => f,
         }))),
         ty::TyFloat(ast::FloatTy::F32) => Ok(Float(F32(match val {
-            F64(f) => f as f32,
-            F32(f) => f
+            F64(f) => {
+                const MAX: f64 = (0b1111111111111111111111111u128 << 103) as f64;
+                if f.is_finite() && (f <= -MAX || f >= MAX) {
+                    return Err(CannotCast);
+                }
+                f as f32
+            }
+            F32(f) => f,
         }))),
         _ => Err(CannotCast),
     }
@@ -604,9 +635,9 @@ fn cast_const<'a, 'tcx>(tcx: TyCtxt<'a, 'tcx, 'tcx>,
                         -> CastResult<'tcx> {
     match val {
         Integral(i) => cast_const_int(tcx, i, ty),
-        Bool(b) => cast_const_int(tcx, U8(b as u8), ty),
+        Bool(b) => cast_const_int(tcx, U8(if b { 1 } else { 0 }), ty),
         Float(f) => cast_const_float(tcx, f, ty),
-        Char(c) => cast_const_int(tcx, U32(c as u32), ty),
+        Char(c) => cast_const_int(tcx, U32(u32::from(c)), ty),
         Variant(v) => {
             let adt = tcx.adt_def(tcx.parent_def_id(v).unwrap());
             let idx = adt.variant_index_with_id(v);
