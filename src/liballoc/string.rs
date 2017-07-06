@@ -65,9 +65,11 @@ use core::str::pattern::Pattern;
 use std_unicode::lossy;
 use std_unicode::char::{decode_utf16, REPLACEMENT_CHARACTER};
 
+use arc::Arc;
 use borrow::{Cow, ToOwned};
 use range::RangeArgument;
 use Bound::{Excluded, Included, Unbounded};
+use rc::Rc;
 use str::{self, from_boxed_utf8_unchecked, FromStr, Utf8Error, Chars};
 use vec::Vec;
 use boxed::Box;
@@ -1943,12 +1945,7 @@ pub trait ToString {
 impl<T: fmt::Display + ?Sized> ToString for T {
     #[inline]
     default fn to_string(&self) -> String {
-        use core::fmt::Write;
-        let mut buf = String::new();
-        buf.write_fmt(format_args!("{}", self))
-           .expect("a Display implementation return an error unexpectedly");
-        buf.shrink_to_fit();
-        buf
+        format_args!("{}", self).to_string()
     }
 }
 
@@ -1973,6 +1970,66 @@ impl ToString for String {
     #[inline]
     fn to_string(&self) -> String {
         self.to_owned()
+    }
+}
+
+#[stable(feature = "more_to_string_specialization", since = "1.20.0")]
+impl<'a, B: ?Sized> ToString for Cow<'a, B>
+    where B: fmt::Display + ToOwned,
+          <B as ToOwned>::Owned: fmt::Display
+{
+    default fn to_string(&self) -> String {
+        match *self {
+            Cow::Borrowed(ref b) => b.to_string(),
+            Cow::Owned(ref o) => o.to_string(),
+        }
+    }
+}
+
+#[stable(feature = "more_to_string_specialization", since = "1.20.0")]
+impl<'a, T: fmt::Display + ?Sized> ToString for &'a T {
+    fn to_string(&self) -> String {
+        (**self).to_string()
+    }
+}
+
+#[stable(feature = "more_to_string_specialization", since = "1.20.0")]
+impl<'a, T: fmt::Display + ?Sized> ToString for &'a mut T {
+    fn to_string(&self) -> String {
+        (**self).to_string()
+    }
+}
+
+#[stable(feature = "more_to_string_specialization", since = "1.20.0")]
+impl<T: fmt::Display + ?Sized> ToString for Box<T> {
+    fn to_string(&self) -> String {
+        (**self).to_string()
+    }
+}
+
+#[stable(feature = "more_to_string_specialization", since = "1.20.0")]
+impl<T: fmt::Display + ?Sized> ToString for Arc<T> {
+    fn to_string(&self) -> String {
+        (**self).to_string()
+    }
+}
+
+#[stable(feature = "more_to_string_specialization", since = "1.20.0")]
+impl<T: fmt::Display + ?Sized> ToString for Rc<T> {
+    fn to_string(&self) -> String {
+        (**self).to_string()
+    }
+}
+
+#[stable(feature = "more_to_string_specialization", since = "1.20.0")]
+impl<'a> ToString for fmt::Arguments<'a> {
+    fn to_string(&self) -> String {
+        use core::fmt::Write;
+        let mut buf = String::new();
+        buf.write_fmt(*self)
+           .expect("a Display implementation return an error unexpectedly");
+        buf.shrink_to_fit();
+        buf
     }
 }
 
