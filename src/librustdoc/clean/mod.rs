@@ -2610,25 +2610,40 @@ impl Clean<Vec<Item>> for doctree::Import {
         // forcefully don't inline if this is not public or if the
         // #[doc(no_inline)] attribute is present.
         // Don't inline doc(hidden) imports so they can be stripped at a later stage.
-        let denied = self.vis != hir::Public || self.attrs.iter().any(|a| {
-            a.name().unwrap() == "doc" && match a.meta_item_list() {
-                Some(l) => attr::list_contains_name(&l, "no_inline") ||
-                           attr::list_contains_name(&l, "hidden"),
-                None => false,
-            }
-        });
+        // let denied = self.vis != hir::Public || self.attrs.iter().any(|a| {
+        //     a.name().unwrap() == "doc" && match a.meta_item_list() {
+        //         Some(l) => attr::list_contains_name(&l, "no_inline") ||
+        //                    attr::list_contains_name(&l, "hidden"),
+        //         None => false,
+        //     }
+        // });
         let path = self.path.clean(cx);
+        let did = if path.def == Def::Err {
+            None
+        } else {
+            Some(path.def.def_id())
+        };
         let inner = if self.glob {
             Import::Glob(resolve_use_source(cx, path))
         } else {
             let name = self.name;
-            if !denied {
-                if let Some(items) = inline::try_inline(cx, path.def, name) {
-                    return items;
-                }
-            }
+            // if !denied {
+            //     if let Some(items) = inline::try_inline(cx, path.def, name) {
+            //         return items;
+            //     }
+            // }
             Import::Simple(name.clean(cx), resolve_use_source(cx, path))
         };
+        if let Some(src_did) = did {
+            let use_stab = get_stability(cx, cx.tcx.hir.local_def_id(self.id));
+            let src_stab = get_stability(cx, src_did);
+            if self.vis == hir::Visibility::Public && use_stab != src_stab {
+                println!("{:#}", inner);
+                println!("{:?}", self.whence.clean(cx));
+                println!("{:?}", use_stab);
+                println!("{:?}", src_stab);
+            }
+        }
         vec![Item {
             name: None,
             attrs: self.attrs.clean(cx),
@@ -2852,7 +2867,7 @@ impl Clean<Item> for doctree::Macro {
     }
 }
 
-#[derive(Clone, RustcEncodable, RustcDecodable, Debug)]
+#[derive(Clone, RustcEncodable, RustcDecodable, Debug, PartialEq)]
 pub struct Stability {
     pub level: stability::StabilityLevel,
     pub feature: String,

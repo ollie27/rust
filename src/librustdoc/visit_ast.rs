@@ -387,25 +387,25 @@ impl<'a, 'tcx> RustdocVisitor<'a, 'tcx> {
 
                 // If there was a private module in the current path then don't bother inlining
                 // anything as it will probably be stripped anyway.
-                if item.vis == hir::Public && self.inside_public_path {
-                    let please_inline = item.attrs.iter().any(|item| {
-                        match item.meta_item_list() {
-                            Some(ref list) if item.check_name("doc") => {
-                                list.iter().any(|i| i.check_name("inline"))
-                            }
-                            _ => false,
-                        }
-                    });
-                    let name = if is_glob { None } else { Some(name) };
-                    if self.maybe_inline_local(item.id,
-                                               path.def,
-                                               name,
-                                               is_glob,
-                                               om,
-                                               please_inline) {
-                        return;
-                    }
-                }
+                // if item.vis == hir::Public && self.inside_public_path {
+                //     let please_inline = item.attrs.iter().any(|item| {
+                //         match item.meta_item_list() {
+                //             Some(ref list) if item.check_name("doc") => {
+                //                 list.iter().any(|i| i.check_name("inline"))
+                //             }
+                //             _ => false,
+                //         }
+                //     });
+                //     let name = if is_glob { None } else { Some(name) };
+                //     if self.maybe_inline_local(item.id,
+                //                                path.def,
+                //                                name,
+                //                                is_glob,
+                //                                om,
+                //                                please_inline) {
+                //         return;
+                //     }
+                // }
 
                 om.imports.push(Import {
                     name: name,
