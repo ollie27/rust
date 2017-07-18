@@ -13,7 +13,7 @@
 //! This library contains the tidy lints and exposes it
 //! to be used by tools.
 
-#![deny(warnings)]
+// #![deny(warnings)]
 
 use std::fs;
 

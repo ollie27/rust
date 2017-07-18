@@ -61,78 +61,78 @@ pub fn check(path: &Path, bad: &mut bool, quiet: bool) {
 
     let mut contents = String::new();
 
-    super::walk_many(&[&path.join("test/compile-fail"),
-                       &path.join("test/compile-fail-fulldeps"),
-                       &path.join("test/parse-fail"),],
-                     &mut |path| super::filter_dirs(path),
-                     &mut |file| {
-        let filename = file.file_name().unwrap().to_string_lossy();
-        if !filename.ends_with(".rs") || filename == "features.rs" ||
-           filename == "diagnostic_list.rs" {
-            return;
-        }
+    // super::walk_many(&[&path.join("test/compile-fail"),
+    //                    &path.join("test/compile-fail-fulldeps"),
+    //                    &path.join("test/parse-fail"),],
+    //                  &mut |path| super::filter_dirs(path),
+    //                  &mut |file| {
+    //     let filename = file.file_name().unwrap().to_string_lossy();
+    //     if !filename.ends_with(".rs") || filename == "features.rs" ||
+    //        filename == "diagnostic_list.rs" {
+    //         return;
+    //     }
 
-        let filen_underscore = filename.replace("-","_").replace(".rs","");
-        let filename_is_gate_test = test_filen_gate(&filen_underscore, &mut features);
+    //     let filen_underscore = filename.replace("-","_").replace(".rs","");
+    //     let filename_is_gate_test = test_filen_gate(&filen_underscore, &mut features);
 
-        contents.truncate(0);
-        t!(t!(File::open(&file), &file).read_to_string(&mut contents));
+    //     contents.truncate(0);
+    //     t!(t!(File::open(&file), &file).read_to_string(&mut contents));
 
-        for (i, line) in contents.lines().enumerate() {
-            let mut err = |msg: &str| {
-                tidy_error!(bad, "{}:{}: {}", file.display(), i + 1, msg);
-            };
+    //     for (i, line) in contents.lines().enumerate() {
+    //         let mut err = |msg: &str| {
+    //             tidy_error!(bad, "{}:{}: {}", file.display(), i + 1, msg);
+    //         };
 
-            let gate_test_str = "gate-test-";
+    //         let gate_test_str = "gate-test-";
 
-            if !line.contains(gate_test_str) {
-                continue;
-            }
+    //         if !line.contains(gate_test_str) {
+    //             continue;
+    //         }
 
-            let feature_name = match line.find(gate_test_str) {
-                Some(i) => {
-                    &line[i+gate_test_str.len()..line[i+1..].find(' ').unwrap_or(line.len())]
-                },
-                None => continue,
-            };
-            match features.get_mut(feature_name) {
-                Some(f) => {
-                    if filename_is_gate_test {
-                        err(&format!("The file is already marked as gate test \
-                                      through its name, no need for a \
-                                      'gate-test-{}' comment",
-                                     feature_name));
-                    }
-                    f.has_gate_test = true;
-                }
-                None => {
-                    err(&format!("gate-test test found referencing a nonexistent feature '{}'",
-                                 feature_name));
-                }
-            }
-        }
-    });
+    //         let feature_name = match line.find(gate_test_str) {
+    //             Some(i) => {
+    //                 &line[i+gate_test_str.len()..line[i+1..].find(' ').unwrap_or(line.len())]
+    //             },
+    //             None => continue,
+    //         };
+    //         match features.get_mut(feature_name) {
+    //             Some(f) => {
+    //                 if filename_is_gate_test {
+    //                     err(&format!("The file is already marked as gate test \
+    //                                   through its name, no need for a \
+    //                                   'gate-test-{}' comment",
+    //                                  feature_name));
+    //                 }
+    //                 f.has_gate_test = true;
+    //             }
+    //             None => {
+    //                 err(&format!("gate-test test found referencing a nonexistent feature '{}'",
+    //                              feature_name));
+    //             }
+    //         }
+    //     }
+    // });
 
-    // Only check the number of lang features.
-    // Obligatory testing for library features is dumb.
-    let gate_untested = features.iter()
-                                .filter(|&(_, f)| f.level == Status::Unstable)
-                                .filter(|&(_, f)| !f.has_gate_test)
-                                .collect::<Vec<_>>();
+    // // Only check the number of lang features.
+    // // Obligatory testing for library features is dumb.
+    // let gate_untested = features.iter()
+    //                             .filter(|&(_, f)| f.level == Status::Unstable)
+    //                             .filter(|&(_, f)| !f.has_gate_test)
+    //                             .collect::<Vec<_>>();
 
-    for &(name, _) in gate_untested.iter() {
-        println!("Expected a gate test for the feature '{}'.", name);
-        println!("Hint: create a file named 'feature-gate-{}.rs' in the compile-fail\
-                \n      test suite, with its failures due to missing usage of\
-                \n      #![feature({})].", name, name);
-        println!("Hint: If you already have such a test and don't want to rename it,\
-                \n      you can also add a // gate-test-{} line to the test file.",
-                 name);
-    }
+    // for &(name, _) in gate_untested.iter() {
+    //     println!("Expected a gate test for the feature '{}'.", name);
+    //     println!("Hint: create a file named 'feature-gate-{}.rs' in the compile-fail\
+    //             \n      test suite, with its failures due to missing usage of\
+    //             \n      #![feature({})].", name, name);
+    //     println!("Hint: If you already have such a test and don't want to rename it,\
+    //             \n      you can also add a // gate-test-{} line to the test file.",
+    //              name);
+    // }
 
-    if gate_untested.len() > 0 {
-        tidy_error!(bad, "Found {} features without a gate test.", gate_untested.len());
-    }
+    // if gate_untested.len() > 0 {
+    //     tidy_error!(bad, "Found {} features without a gate test.", gate_untested.len());
+    // }
 
     if *bad {
         return;
@@ -188,12 +188,12 @@ pub fn collect_lang_features(base_src_path: &Path) -> Features {
     let path = base_src_path.join("libsyntax/feature_gate.rs");
     t!(t!(File::open(path)).read_to_string(&mut contents));
 
-    contents.lines()
+    let mut new: HashMap<String, Feature> = contents.lines()
         .filter_map(|line| {
             let mut parts = line.trim().split(",");
             let level = match parts.next().map(|l| l.trim().trim_left_matches('(')) {
-                Some("active") => Status::Unstable,
-                Some("removed") => Status::Removed,
+                // Some("active") => Status::Unstable,
+                // Some("removed") => Status::Removed,
                 Some("accepted") => Status::Stable,
                 _ => return None,
             };
@@ -214,7 +214,32 @@ pub fn collect_lang_features(base_src_path: &Path) -> Features {
                     tracking_issue,
                 }))
         })
-        .collect()
+        .collect();
+    let old: HashMap<String, Feature> = contents.lines()
+        .filter_map(|line| {
+            let mut parts = line.trim().split(",").collect::<Vec<&str>>();
+            if parts.len() < 3 {
+                return None;
+            }
+            let level = match parts.get(parts.len() - 2).map(|l| l.trim().trim_right_matches(')')) {
+                // Some("Active") => Status::Unstable,
+                // Some("Removed") => Status::Removed,
+                Some("Accepted") => Status::Stable,
+                _ => return None,
+           };
+            let name = parts.get(0).unwrap().trim().trim_left_matches('(').trim_matches('"');
+            let since = parts.get(1).unwrap().trim().trim_matches('"');
+            Some((name.to_owned(),
+                Feature {
+                    level: level,
+                    since: since.to_owned(),
+                    has_gate_test: false,
+                    tracking_issue: None,
+                }))
+        })
+        .collect();
+    new.extend(old);
+    new
 }
 
 pub fn collect_lib_features(base_src_path: &Path) -> Features {
@@ -259,7 +284,9 @@ fn get_and_check_lib_features(base_src_path: &Path,
                             err("different `tracking_issue` than before");
                         }
                     }
-                    lib_features.insert(name.to_owned(), f);
+                    if f.level == Status::Stable {
+                        lib_features.insert(name.to_owned(), f);
+                    }
                 },
                 Err(msg) => {
                     tidy_error!(bad, "{}:{}: {}", file.display(), line, msg);
