@@ -113,7 +113,14 @@ pub trait DocFolder : Sized {
         c.module = c.module.and_then(|module| self.fold_item(module));
 
         c.external_traits = c.external_traits.into_iter().map(|(k, mut v)| {
-            v.items = v.items.into_iter().filter_map(|i| self.fold_item(i)).collect();
+            use clean;
+            use std::mem;
+            if let clean::TraitItem(ref mut t) = v.inner {
+                let items = mem::replace(&mut t.items, Default::default());
+                t.items = items.into_iter().filter_map(|i| self.fold_item(i)).collect();
+            } else {
+                panic!("none trait found in Cache::traits");
+            }
             (k, v)
         }).collect();
         c
