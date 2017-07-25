@@ -55,7 +55,7 @@ use externalfiles::ExternalHtml;
 use serialize::json::{ToJson, Json, as_json};
 use syntax::{abi, ast};
 use syntax::feature_gate::UnstableFeatures;
-use rustc::hir::def_id::{CrateNum, CRATE_DEF_INDEX, DefId};
+use rustc::hir::def_id::{CrateNum, CRATE_DEF_INDEX, DefId, LOCAL_CRATE};
 use rustc::middle::privacy::AccessLevels;
 use rustc::middle::stability;
 use rustc::hir;
@@ -443,7 +443,7 @@ pub fn run(mut krate: clean::Crate,
         None => PathBuf::new(),
     };
     let mut scx = SharedContext {
-        src_root: src_root,
+        src_root: src_root.clone(),
         passes: passes,
         include_sources: true,
         local_sources: FxHashMap(),
@@ -537,7 +537,7 @@ pub fn run(mut krate: clean::Crate,
         typarams: external_typarams,
     };
 
-    // Cache where all our extern crates are located
+    // Cache where all our crates are located
     for &(n, ref e) in &krate.externs {
         let src_root = match Path::new(&e.src).parent() {
             Some(p) => p.to_path_buf(),
@@ -549,6 +549,7 @@ pub fn run(mut krate: clean::Crate,
         let did = DefId { krate: n, index: CRATE_DEF_INDEX };
         cache.external_paths.insert(did, (vec![e.name.to_string()], ItemType::Module));
     }
+    cache.extern_locations.insert(LOCAL_CRATE, (krate.name.clone(), src_root, Local));
 
     // Cache where all known primitives have their documentation located.
     //
@@ -754,13 +755,16 @@ fn write_shared(cx: &Context,
         //
         // FIXME: this is a vague explanation for why this can't be a `get`, in
         //        theory it should be...
-        let &(ref remote_path, remote_item_type) = match cache.paths.get(&did) {
+        let &(ref remote_path, remote_item_type) = match if did.is_local() {
+            cache.paths.get(&did)
+        } else {
+            cache.external_paths.get(&did)
+        } {
             Some(p) => p,
-            None => match cache.external_paths.get(&did) {
-                Some(p) => p,
-                None => continue,
-            }
+            None => continue,
         };
+
+        let mut have_impls = false;
 
         let mut implementors = format!(r#"implementors["{}"] = ["#, krate.name);
         for imp in imps {
@@ -769,9 +773,19 @@ fn write_shared(cx: &Context,
             // going on). If they're in different crates then the crate defining
             // the trait will be interested in our implementation.
             if imp.def_id.krate == did.krate { continue }
+            // If the implementation is from another crate then that crate
+            // should add it.
+            if !imp.def_id.is_local() { continue }
+            have_impls = true;
             write!(implementors, "{},", as_json(&imp.impl_.to_string())).unwrap();
         }
         implementors.push_str("];");
+
+        // Only create a js file if we have impls to add to it. If the trait is
+        // local though we always create the file to avoid dead links.
+        if !have_impls && !did.is_local() {
+            continue;
+        }
 
         let mut mydst = dst.clone();
         for part in &remote_path[..remote_path.len() - 1] {
@@ -988,6 +1002,7 @@ impl DocFolder for Cache {
         // trait.
         if let clean::TraitItem(ref t) = item.inner {
             self.traits.entry(item.def_id).or_insert_with(|| t.clone());
+            self.implementors.entry(item.def_id).or_insert(vec![]);
         }
 
         // Collect all the implementors of traits.

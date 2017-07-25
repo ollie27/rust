@@ -514,35 +514,24 @@ fn primitive_link(f: &mut fmt::Formatter,
     let m = cache();
     let mut needs_termination = false;
     if !f.alternate() {
-        match m.primitive_locations.get(&prim) {
-            Some(&def_id) if def_id.is_local() => {
-                let len = CURRENT_LOCATION_KEY.with(|s| s.borrow().len());
-                let len = if len == 0 {0} else {len - 1};
-                write!(f, "<a class=\"primitive\" href=\"{}primitive.{}.html\">",
-                       repeat("../").take(len).collect::<String>(),
-                       prim.to_url_str())?;
+        if let Some(&def_id) = m.primitive_locations.get(&prim) {
+            let loc = match m.extern_locations[&def_id.krate] {
+                (ref cname, _, render::Remote(ref s)) => {
+                    Some((cname, s.to_string()))
+                }
+                (ref cname, _, render::Local) => {
+                    let len = CURRENT_LOCATION_KEY.with(|s| s.borrow().len());
+                    Some((cname, repeat("../").take(len).collect::<String>()))
+                }
+                (.., render::Unknown) => None,
+            };
+            if let Some((cname, root)) = loc {
+                write!(f, "<a class=\"primitive\" href=\"{}{}/primitive.{}.html\">",
+                        root,
+                        cname,
+                        prim.to_url_str())?;
                 needs_termination = true;
             }
-            Some(&def_id) => {
-                let loc = match m.extern_locations[&def_id.krate] {
-                    (ref cname, _, render::Remote(ref s)) => {
-                        Some((cname, s.to_string()))
-                    }
-                    (ref cname, _, render::Local) => {
-                        let len = CURRENT_LOCATION_KEY.with(|s| s.borrow().len());
-                        Some((cname, repeat("../").take(len).collect::<String>()))
-                    }
-                    (.., render::Unknown) => None,
-                };
-                if let Some((cname, root)) = loc {
-                    write!(f, "<a class=\"primitive\" href=\"{}{}/primitive.{}.html\">",
-                           root,
-                           cname,
-                           prim.to_url_str())?;
-                    needs_termination = true;
-                }
-            }
-            None => {}
         }
     }
     write!(f, "{}", name)?;
