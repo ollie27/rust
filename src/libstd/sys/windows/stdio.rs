@@ -75,19 +75,24 @@ fn write(handle: c::DWORD, data: &[u8]) -> io::Result<usize> {
         Err(ref e) if e.valid_up_to() == 0 => return Err(invalid_encoding()),
         Err(e) => str::from_utf8(&data[..e.valid_up_to()]).unwrap(),
     };
-    let utf16 = utf8.encode_utf16().collect::<Vec<u16>>();
+    let mut utf16_len = 0;
+    let mut utf16 = [0; OUT_MAX];
+    for c in utf8.encode_utf16() {
+        utf16[utf16_len] = c;
+        utf16_len += 1;
+    }
     let mut written = 0;
     cvt(unsafe {
         c::WriteConsoleW(handle,
                          utf16.as_ptr() as c::LPCVOID,
-                         utf16.len() as u32,
+                         utf16_len as c::DWORD,
                          &mut written,
                          ptr::null_mut())
     })?;
 
     // FIXME if this only partially writes the utf16 buffer then we need to
     //       figure out how many bytes of `data` were actually written
-    assert_eq!(written as usize, utf16.len());
+    assert_eq!(written as usize, utf16_len);
     Ok(utf8.len())
 }
 
