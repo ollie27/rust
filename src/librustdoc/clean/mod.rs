@@ -145,18 +145,22 @@ impl<'a, 'tcx> Clean<Crate> for visit_ast::RustdocVisitor<'a, 'tcx> {
                 ModuleItem(ref mut m) => m,
                 _ => unreachable!(),
             };
-            m.items.extend(primitives.iter().map(|&(def_id, prim, ref attrs)| {
-                Item {
-                    source: Span::empty(),
-                    name: Some(prim.to_url_str().to_string()),
-                    attrs: attrs.clone(),
-                    visibility: Some(Public),
-                    stability: get_stability(cx, def_id),
-                    deprecation: get_deprecation(cx, def_id),
-                    def_id: def_id,
-                    inner: PrimitiveItem(prim),
+            for &(def_id, prim, ref attrs) in &primitives {
+                for item in &mut m.items {
+                    if item.def_id == def_id {
+                        *item = Item {
+                            source: Span::empty(),
+                            name: Some(prim.to_url_str().to_string()),
+                            attrs: attrs.clone(),
+                            visibility: Some(Public),
+                            stability: get_stability(cx, def_id),
+                            deprecation: get_deprecation(cx, def_id),
+                            def_id: def_id,
+                            inner: PrimitiveItem(prim),
+                        }
+                    }
                 }
-            }));
+            }
         }
 
         let mut access_levels = cx.access_levels.borrow_mut();
