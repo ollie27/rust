@@ -70,7 +70,7 @@ use html::escape::Escape;
 use html::format::{ConstnessSpace};
 use html::format::{TyParamBounds, WhereClause, href, AbiSpace};
 use html::format::{VisSpace, Method, UnsafetySpace, MutableSpace};
-use html::format::fmt_impl_for_trait_page;
+use html::format::ImplForTraitPage;
 use html::item_type::ItemType;
 use html::markdown::{self, Markdown, MarkdownHtml, MarkdownSummaryLine, RenderType};
 use html::{highlight, layout};
@@ -769,7 +769,8 @@ fn write_shared(cx: &Context,
             // going on). If they're in different crates then the crate defining
             // the trait will be interested in our implementation.
             if imp.def_id.krate == did.krate { continue }
-            write!(implementors, "{},", as_json(&imp.impl_.to_string())).unwrap();
+            let rendered_impl = ImplForTraitPage(&imp.impl_, false).to_string();
+            write!(implementors, "{},", as_json(&rendered_impl)).unwrap();
         }
         implementors.push_str("];");
 
@@ -2234,14 +2235,7 @@ fn item_trait(w: &mut fmt::Formatter, cx: &Context, it: &clean::Item,
                 } => implementor_dups[path.last_name()].1,
                 _ => false,
             };
-            fmt_impl_for_trait_page(&implementor.impl_, w, use_absolute)?;
-            for it in &implementor.impl_.items {
-                if let clean::TypedefItem(ref tydef, _) = it.inner {
-                    write!(w, "<span class=\"where fmt-newline\">  ")?;
-                    assoc_type(w, it, &vec![], Some(&tydef.type_), AssocItemLink::Anchor(None))?;
-                    write!(w, ";</span>")?;
-                }
-            }
+            write!(w, "{}", ImplForTraitPage(&implementor.impl_, use_absolute))?;
             writeln!(w, "</code></li>")?;
         }
     }

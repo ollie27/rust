@@ -51,6 +51,9 @@ pub struct TyParamBounds<'a>(pub &'a [clean::TyParamBound]);
 /// Wrapper struct for emitting a comma-separated list of items
 pub struct CommaSep<'a, T: 'a>(pub &'a [T]);
 pub struct AbiSpace(pub Abi);
+/// Wrapper struct for emitting an Impl without the Trait being hyperlinked and
+/// associated types shown.
+pub struct ImplForTraitPage<'a>(pub &'a clean::Impl, pub bool);
 
 /// Wrapper struct for properly emitting a method declaration.
 pub struct Method<'a> {
@@ -834,11 +837,18 @@ impl fmt::Display for clean::Impl {
     }
 }
 
-// The difference from above is that trait is not hyperlinked.
-pub fn fmt_impl_for_trait_page(i: &clean::Impl,
-                               f: &mut fmt::Formatter,
-                               use_absolute: bool) -> fmt::Result {
-    fmt_impl(i, f, false, use_absolute)
+impl<'a> fmt::Display for ImplForTraitPage<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt_impl(self.0, f, false, self.1)?;
+        for it in &self.0.items {
+            if let clean::TypedefItem(ref tydef, _) = it.inner {
+                write!(f, "<span class=\"where fmt-newline\">  ")?;
+                assoc_type(f, it, &vec![], Some(&tydef.type_), AssocItemLink::Anchor(None))?;
+                write!(f, ";</span>")?;
+            }
+        }
+        Ok(())
+    }
 }
 
 impl fmt::Display for clean::Arguments {
