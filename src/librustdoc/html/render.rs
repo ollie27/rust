@@ -607,6 +607,22 @@ fn build_index(krate: &clean::Crate, cache: &mut Cache) -> String {
         }
     }
 
+    fn compare_index_items(a: &IndexItem, b: &IndexItem) -> Ordering {
+        (&a.path, &a.parent, &a.name, &a.ty).cmp(&(&b.path, &b.parent, &b.name, &b.ty))
+    }
+
+    search_index.sort_by(compare_index_items);
+    search_index.dedup_by(|a, b| {
+        if compare_index_items(a, b) == Ordering::Equal {
+            if a.desc != b.desc {
+                b.desc = String::new();
+            }
+            true
+        } else {
+            false
+        }
+    });
+
     // Reduce `NodeId` in paths into smaller sequential numbers,
     // and prune the paths that do not appear in the index.
     let mut lastpath = String::new();
