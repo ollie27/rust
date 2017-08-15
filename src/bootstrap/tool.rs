@@ -17,7 +17,7 @@ use Mode;
 use Compiler;
 use builder::{Step, RunConfig, ShouldRun, Builder};
 use util::{copy, exe, add_lib_path};
-use compile::{self, libtest_stamp, libstd_stamp, librustc_stamp};
+use compile::{self, libtest_stamp, libstd_stamp, librustc_stamp, libcompiler_builtins_stamp};
 use native;
 use channel::GitInfo;
 use cache::Interned;
@@ -48,6 +48,7 @@ impl Step for CleanTools {
 
         let stamp = match mode {
             Mode::Libstd => libstd_stamp(build, compiler, target),
+            Mode::Libcompiler_builtins => libcompiler_builtins_stamp(build, compiler, target),
             Mode::Libtest => libtest_stamp(build, compiler, target),
             Mode::Librustc => librustc_stamp(build, compiler, target),
             _ => panic!(),
@@ -84,6 +85,7 @@ impl Step for ToolBuild {
 
         match self.mode {
             Mode::Libstd => builder.ensure(compile::Std { compiler, target }),
+            Mode::Libcompiler_builtins => builder.ensure(compile::CompilerBuiltins { compiler, target }),
             Mode::Libtest => builder.ensure(compile::Test { compiler, target }),
             Mode::Librustc => builder.ensure(compile::Rustc { compiler, target }),
             Mode::Tool => panic!("unexpected Mode::Tool for tool build")

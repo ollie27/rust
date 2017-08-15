@@ -69,6 +69,7 @@ impl Step for Std {
         let compiler = self.compiler;
 
         builder.ensure(StartupObjects { compiler, target });
+        builder.ensure(CompilerBuiltins { compiler, target });
 
         if build.force_use_stage1(compiler, target) {
             let from = builder.compiler(1, build.build);
@@ -287,6 +288,110 @@ impl Step for StartupObjects {
         for obj in ["crt2.o", "dllcrt2.o"].iter() {
             copy(&compiler_file(build.cc(target), obj), &sysroot_dir.join(obj));
         }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct CompilerBuiltins {
+    pub compiler: Compiler,
+    pub target: Interned<String>,
+}
+
+impl Step for CompilerBuiltins {
+    type Output = ();
+    const DEFAULT: bool = true;
+
+    fn should_run(run: ShouldRun) -> ShouldRun {
+        run.path("src/libcompiler_builtins").krate("compiler_builtins")
+    }
+
+    fn make_run(run: RunConfig) {
+        run.builder.ensure(CompilerBuiltins {
+            compiler: run.builder.compiler(run.builder.top_stage, run.host),
+            target: run.target,
+        });
+    }
+
+    /// Build libcompiler_builtins.
+    ///
+    /// This will build libcompiler_builtins for a particular stage of
+    /// the build using the `compiler` targeting the `target` architecture. The
+    /// artifacts created will also be linked into the sysroot directory.
+    fn run(self, builder: &Builder) {
+        let build = builder.build;
+        let target = self.target;
+        let compiler = self.compiler;
+
+        if build.force_use_stage1(compiler, target) {
+            builder.ensure(CompilerBuiltins {
+                compiler: builder.compiler(1, build.build),
+                target: target,
+            });
+            println!("Uplifting stage1 compiler_builtins ({} -> {})", &build.build, target);
+            builder.ensure(CompilerBuiltinsLink {
+                compiler: builder.compiler(1, build.build),
+                target_compiler: compiler,
+                target: target,
+            });
+            return;
+        }
+
+        let _folder = build.fold_output(|| format!("stage{}-compiler_builtins", compiler.stage));
+        println!("Building stage{} compiler_builtins artifacts ({} -> {})", compiler.stage,
+                &compiler.host, target);
+        let out_dir = build.cargo_out(compiler, Mode::Libcompiler_builtins, target);
+        build.clear_if_dirty(&out_dir, &libstd_stamp(build, compiler, target));
+        let mut cargo = builder.cargo(compiler, Mode::Libcompiler_builtins, target, "build");
+        compiler_builtins_cargo(build, &compiler, target, &mut cargo);
+        run_cargo(build,
+                &mut cargo,
+                &libcompiler_builtins_stamp(build, compiler, target));
+
+        builder.ensure(CompilerBuiltinsLink {
+            compiler: builder.compiler(compiler.stage, build.build),
+            target_compiler: compiler,
+            target: target,
+        });
+    }
+}
+
+/// Same as `std_cargo`, but for libcompiler_builtins
+pub fn compiler_builtins_cargo(build: &Build,
+                  _compiler: &Compiler,
+                  _target: Interned<String>,
+                  cargo: &mut Command) {
+    cargo.arg("--manifest-path")
+        .arg(build.src.join("src/rustc/compiler_builtins_shim/Cargo.toml"));
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct CompilerBuiltinsLink {
+    pub compiler: Compiler,
+    pub target_compiler: Compiler,
+    pub target: Interned<String>,
+}
+
+impl Step for CompilerBuiltinsLink {
+    type Output = ();
+
+    fn should_run(run: ShouldRun) -> ShouldRun {
+        run.never()
+    }
+
+    /// Same as `std_link`, only for libcompiler_builtins
+    fn run(self, builder: &Builder) {
+        let build = builder.build;
+        let compiler = self.compiler;
+        let target_compiler = self.target_compiler;
+        let target = self.target;
+        println!("Copying stage{} compiler_builtins from stage{} ({} -> {} / {})",
+                target_compiler.stage,
+                compiler.stage,
+                &compiler.host,
+                target_compiler.host,
+                target);
+        add_to_sysroot(&builder.sysroot_libdir(target_compiler, target),
+                    &libcompiler_builtins_stamp(build, compiler, target));
     }
 }
 
@@ -591,6 +696,12 @@ impl Step for RustcLink {
 /// by a particular compiler for the specified target.
 pub fn libstd_stamp(build: &Build, compiler: Compiler, target: Interned<String>) -> PathBuf {
     build.cargo_out(compiler, Mode::Libstd, target).join(".libstd.stamp")
+}
+
+/// Cargo's output path for libcompiler_builtins in a given stage, compiled by a particular
+/// compiler for the specified target.
+pub fn libcompiler_builtins_stamp(build: &Build, compiler: Compiler, target: Interned<String>) -> PathBuf {
+    build.cargo_out(compiler, Mode::Libcompiler_builtins, target).join(".libcompiler_builtins.stamp")
 }
 
 /// Cargo's output path for libtest in a given stage, compiled by a particular
