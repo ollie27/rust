@@ -72,7 +72,7 @@ type Cache = HashMap<PathBuf, FileEntry>;
 impl FileEntry {
     fn parse_ids(&mut self, file: &Path, contents: &str, errors: &mut bool) {
         if self.ids.is_empty() {
-            with_attrs_in_source(contents, " id", |fragment, i, _| {
+            with_attrs_in_source(contents, &[" id"], |fragment, i, _| {
                 let frag = fragment.trim_left_matches("#").to_owned();
                 if !self.ids.insert(frag) {
                     *errors = true;
@@ -142,7 +142,7 @@ fn check(cache: &mut Cache,
     }
 
     // Search for anything that's the regex 'href[ ]*=[ ]*".*?"'
-    with_attrs_in_source(&contents, " href", |url, i, base| {
+    with_attrs_in_source(&contents, &[" href", " src"], |url, i, base| {
         // Ignore external URLs
         if url.starts_with("http:") || url.starts_with("https:") ||
            url.starts_with("javascript:") || url.starts_with("ftp:") ||
@@ -298,44 +298,46 @@ fn maybe_redirect(source: &str) -> Option<String> {
     })
 }
 
-fn with_attrs_in_source<F: FnMut(&str, usize, &str)>(contents: &str, attr: &str, mut f: F) {
+fn with_attrs_in_source<F: FnMut(&str, usize, &str)>(contents: &str, attrs: &[&str], mut f: F) {
     let mut base = "";
-    for (i, mut line) in contents.lines().enumerate() {
-        while let Some(j) = line.find(attr) {
-            let rest = &line[j + attr.len()..];
-            // The base tag should always be the first link in the document so
-            // we can get away with using one pass.
-            let is_base = line[..j].ends_with("<base");
-            line = rest;
-            let pos_equals = match rest.find("=") {
-                Some(i) => i,
-                None => continue,
-            };
-            if rest[..pos_equals].trim_left_matches(" ") != "" {
-                continue;
-            }
+    for attr in attrs {
+        for (i, mut line) in contents.lines().enumerate() {
+            while let Some(j) = line.find(attr) {
+                let rest = &line[j + attr.len()..];
+                // The base tag should always be the first link in the document so
+                // we can get away with using one pass.
+                let is_base = line[..j].ends_with("<base");
+                line = rest;
+                let pos_equals = match rest.find("=") {
+                    Some(i) => i,
+                    None => continue,
+                };
+                if rest[..pos_equals].trim_left_matches(" ") != "" {
+                    continue;
+                }
 
-            let rest = &rest[pos_equals + 1..];
+                let rest = &rest[pos_equals + 1..];
 
-            let pos_quote = match rest.find(&['"', '\''][..]) {
-                Some(i) => i,
-                None => continue,
-            };
-            let quote_delim = rest.as_bytes()[pos_quote] as char;
+                let pos_quote = match rest.find(&['"', '\''][..]) {
+                    Some(i) => i,
+                    None => continue,
+                };
+                let quote_delim = rest.as_bytes()[pos_quote] as char;
 
-            if rest[..pos_quote].trim_left_matches(" ") != "" {
-                continue;
+                if rest[..pos_quote].trim_left_matches(" ") != "" {
+                    continue;
+                }
+                let rest = &rest[pos_quote + 1..];
+                let url = match rest.find(quote_delim) {
+                    Some(i) => &rest[..i],
+                    None => continue,
+                };
+                if is_base {
+                    base = url;
+                    continue;
+                }
+                f(url, i, base)
             }
-            let rest = &rest[pos_quote + 1..];
-            let url = match rest.find(quote_delim) {
-                Some(i) => &rest[..i],
-                None => continue,
-            };
-            if is_base {
-                base = url;
-                continue;
-            }
-            f(url, i, base)
         }
     }
 }
