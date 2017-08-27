@@ -25,7 +25,7 @@ use std::path::{PathBuf, Path};
 use Mode;
 use build_helper::up_to_date;
 
-use util::{cp_r, symlink_dir};
+use util::symlink_dir;
 use builder::{Builder, Compiler, RunConfig, ShouldRun, Step};
 use tool::Tool;
 use compile;
@@ -454,7 +454,7 @@ impl Step for Std {
         let out = build.doc_out(target);
         t!(fs::create_dir_all(&out));
         let compiler = builder.compiler(stage, build.build);
-        let rustdoc = builder.rustdoc(compiler.host);
+        builder.rustdoc(compiler.host);
         let compiler = if build.force_use_stage1(compiler, target) {
             builder.compiler(1, compiler.host)
         } else {
@@ -478,9 +478,7 @@ impl Step for Std {
         //
         // This way rustdoc generates output directly into the output, and rustdoc
         // will also directly handle merging.
-        let my_out = build.crate_doc_out(target);
-        build.clear_if_dirty(&my_out, &rustdoc);
-        t!(symlink_dir_force(&my_out, &out_dir));
+        t!(symlink_dir_force(&out, &out_dir));
 
         let mut cargo = builder.cargo(compiler, Mode::Libstd, target, "doc");
         compile::std_cargo(build, &compiler, target, &mut cargo);
@@ -501,7 +499,6 @@ impl Step for Std {
 
 
         build.run(&mut cargo);
-        cp_r(&my_out, &out);
     }
 }
 
@@ -539,7 +536,7 @@ impl Step for Test {
         let out = build.doc_out(target);
         t!(fs::create_dir_all(&out));
         let compiler = builder.compiler(stage, build.build);
-        let rustdoc = builder.rustdoc(compiler.host);
+        builder.rustdoc(compiler.host);
         let compiler = if build.force_use_stage1(compiler, target) {
             builder.compiler(1, compiler.host)
         } else {
@@ -554,14 +551,11 @@ impl Step for Test {
                            .join(target).join("doc");
 
         // See docs in std above for why we symlink
-        let my_out = build.crate_doc_out(target);
-        build.clear_if_dirty(&my_out, &rustdoc);
-        t!(symlink_dir_force(&my_out, &out_dir));
+        t!(symlink_dir_force(&out, &out_dir));
 
         let mut cargo = builder.cargo(compiler, Mode::Libtest, target, "doc");
         compile::test_cargo(build, &compiler, target, &mut cargo);
         build.run(&mut cargo);
-        cp_r(&my_out, &out);
     }
 }
 
@@ -600,7 +594,7 @@ impl Step for Rustc {
         let out = build.doc_out(target);
         t!(fs::create_dir_all(&out));
         let compiler = builder.compiler(stage, build.build);
-        let rustdoc = builder.rustdoc(compiler.host);
+        builder.rustdoc(compiler.host);
         let compiler = if build.force_use_stage1(compiler, target) {
             builder.compiler(1, compiler.host)
         } else {
@@ -615,9 +609,7 @@ impl Step for Rustc {
                            .join(target).join("doc");
 
         // See docs in std above for why we symlink
-        let my_out = build.crate_doc_out(target);
-        build.clear_if_dirty(&my_out, &rustdoc);
-        t!(symlink_dir_force(&my_out, &out_dir));
+        t!(symlink_dir_force(&out, &out_dir));
 
         let mut cargo = builder.cargo(compiler, Mode::Librustc, target, "doc");
         compile::rustc_cargo(build, &compiler, target, &mut cargo);
@@ -638,7 +630,6 @@ impl Step for Rustc {
         }
 
         build.run(&mut cargo);
-        cp_r(&my_out, &out);
     }
 }
 
