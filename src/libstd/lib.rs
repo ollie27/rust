@@ -250,7 +250,6 @@
 #![feature(char_error_internals)]
 #![feature(char_internals)]
 #![feature(collections_range)]
-#![feature(compiler_builtins_lib)]
 #![feature(const_fn)]
 #![feature(core_float)]
 #![feature(core_intrinsics)]
@@ -361,8 +360,9 @@ extern crate libc;
 #[allow(unused_extern_crates)]
 extern crate unwind;
 
-// compiler-rt intrinsics
-extern crate compiler_builtins;
+#[cfg(stage0)]
+#[link(name = "compiler_builtins.dll")]
+extern "C" {}
 
 // During testing, this crate is not actually the "real" std library, but rather
 // it links to the real std library, which was compiled from this same source

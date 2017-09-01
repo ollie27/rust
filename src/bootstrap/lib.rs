@@ -270,6 +270,10 @@ pub enum Mode {
     /// Build the standard library, placing output in the "stageN-std" directory.
     Libstd,
 
+    /// Build the compiler builtins, placing output in the "stageN-compiler_builtins" directory.
+    #[allow(non_camel_case_types)]
+    Libcompiler_builtins,
+
     /// Build libtest, placing output in the "stageN-test" directory.
     Libtest,
 
@@ -435,6 +439,7 @@ impl Build {
     fn stage_out(&self, compiler: Compiler, mode: Mode) -> PathBuf {
         let suffix = match mode {
             Mode::Libstd => "-std",
+            Mode::Libcompiler_builtins => "-compiler_builtins",
             Mode::Libtest => "-test",
             Mode::Tool => "-tools",
             Mode::Librustc => "-rustc",

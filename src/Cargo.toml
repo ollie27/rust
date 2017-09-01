@@ -2,6 +2,7 @@
 members = [
   "bootstrap",
   "rustc",
+  "rustc/compiler_builtins_shim",
   "libstd",
   "libtest",
   "tools/cargotest",

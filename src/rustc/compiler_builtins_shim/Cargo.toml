@@ -10,6 +10,7 @@ build = "../../libcompiler_builtins/build.rs"
 path = "../../libcompiler_builtins/src/lib.rs"
 test = false
 doctest = false
+crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
 core = { path = "../../libcore" }
@@ -22,3 +23,6 @@ c = []
 default = ["c", "rustbuild", "compiler-builtins"]
 rustbuild = []
 compiler-builtins = []
+
+# [profile.release]
+# lto = true
