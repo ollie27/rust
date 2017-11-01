@@ -1173,7 +1173,7 @@ impl DocFolder for Cache {
             let (parent, is_inherent_impl_item) = match item.inner {
                 clean::StrippedItem(..) => ((None, None), false),
                 clean::AssociatedConstItem(..) |
-                clean::TypedefItem(_, true) if self.parent_is_trait_impl => {
+                clean::AssociatedTypeItem(..) if self.parent_is_trait_impl => {
                     // skip associated items in trait impls
                     ((None, None), false)
                 }
@@ -1765,7 +1765,7 @@ impl<'a> fmt::Display for Item<'a> {
             clean::StructItem(ref s) => item_struct(fmt, self.cx, self.item, s),
             clean::UnionItem(ref s) => item_union(fmt, self.cx, self.item, s),
             clean::EnumItem(ref e) => item_enum(fmt, self.cx, self.item, e),
-            clean::TypedefItem(ref t, _) => item_typedef(fmt, self.cx, self.item, t),
+            clean::TypedefItem(ref t) => item_typedef(fmt, self.cx, self.item, t),
             clean::MacroItem(ref m) => item_macro(fmt, self.cx, self.item, m),
             clean::PrimitiveItem(ref p) => item_primitive(fmt, self.cx, self.item, p),
             clean::StaticItem(ref i) | clean::ForeignStaticItem(ref i) =>
@@ -2539,9 +2539,9 @@ fn item_trait(w: &mut fmt::Formatter, cx: &Context, it: &clean::Item,
             };
             fmt_impl_for_trait_page(&implementor.impl_, w, use_absolute)?;
             for it in &implementor.impl_.items {
-                if let clean::TypedefItem(ref tydef, _) = it.inner {
+                if let clean::AssociatedTypeItem(_, Some(ref t)) = it.inner {
                     write!(w, "<span class=\"where fmt-newline\">  ")?;
-                    assoc_type(w, it, &vec![], Some(&tydef.type_), AssocItemLink::Anchor(None))?;
+                    assoc_type(w, it, &vec![], Some(t), AssocItemLink::Anchor(None))?;
                     write!(w, ";</span>")?;
                 }
             }
@@ -2569,15 +2569,7 @@ fn item_trait(w: &mut fmt::Formatter, cx: &Context, it: &clean::Item,
 }
 
 fn naive_assoc_href(it: &clean::Item, link: AssocItemLink) -> String {
-    use html::item_type::ItemType::*;
-
-    let name = it.name.as_ref().unwrap();
-    let ty = match it.type_() {
-        Typedef | AssociatedType => AssociatedType,
-        s@_ => s,
-    };
-
-    let anchor = format!("#{}.{}", ty, name);
+    let anchor = format!("#{}.{}", it.type_(), it.name.as_ref().unwrap());
     match link {
         AssocItemLink::Anchor(Some(ref id)) => format!("#{}", id),
         AssocItemLink::Anchor(None) => anchor,
@@ -2592,7 +2584,8 @@ fn assoc_const(w: &mut fmt::Formatter,
                ty: &clean::Type,
                _default: Option<&String>,
                link: AssocItemLink) -> fmt::Result {
-    write!(w, "const <a href='{}' class=\"constant\"><b>{}</b></a>: {}",
+    write!(w, "{}const <a href='{}' class=\"constant\"><b>{}</b></a>: {}",
+           VisSpace(&it.visibility),
            naive_assoc_href(it, link),
            it.name.as_ref().unwrap(),
            ty)?;
@@ -3189,7 +3182,7 @@ fn render_deref_methods(w: &mut fmt::Formatter, cx: &Context, impl_: &Impl,
     let deref_type = impl_.inner_impl().trait_.as_ref().unwrap();
     let target = impl_.inner_impl().items.iter().filter_map(|item| {
         match item.inner {
-            clean::TypedefItem(ref t, true) => Some(&t.type_),
+            clean::AssociatedTypeItem(_, Some(ref t)) => Some(t),
             _ => None,
         }
     }).next().expect("Expected associated type binding");
@@ -3293,14 +3286,6 @@ fn render_impl(w: &mut fmt::Formatter, cx: &Context, i: &Impl, link: AssocItemLi
                     write!(w, "</span></h4>\n")?;
                 }
             }
-            clean::TypedefItem(ref tydef, _) => {
-                let id = derive_id(format!("{}.{}", ItemType::AssociatedType, name));
-                let ns_id = derive_id(format!("{}.{}", name, item_type.name_space()));
-                write!(w, "<h4 id='{}' class=\"{}\">", id, item_type)?;
-                write!(w, "<span id='{}' class='invisible'><code>", ns_id)?;
-                assoc_type(w, item, &Vec::new(), Some(&tydef.type_), link.anchor(&id))?;
-                write!(w, "</code></span></h4>\n")?;
-            }
             clean::AssociatedConstItem(ref ty, ref default) => {
                 let id = derive_id(format!("{}.{}", item_type, name));
                 let ns_id = derive_id(format!("{}.{}", name, item_type.name_space()));
@@ -3309,12 +3294,12 @@ fn render_impl(w: &mut fmt::Formatter, cx: &Context, i: &Impl, link: AssocItemLi
                 assoc_const(w, item, ty, default.as_ref(), link.anchor(&id))?;
                 write!(w, "</code></span></h4>\n")?;
             }
-            clean::AssociatedTypeItem(ref bounds, ref default) => {
+            clean::AssociatedTypeItem(ref bounds, ref ty) => {
                 let id = derive_id(format!("{}.{}", item_type, name));
                 let ns_id = derive_id(format!("{}.{}", name, item_type.name_space()));
                 write!(w, "<h4 id='{}' class=\"{}\">", id, item_type)?;
                 write!(w, "<span id='{}' class='invisible'><code>", ns_id)?;
-                assoc_type(w, item, bounds, default.as_ref(), link.anchor(&id))?;
+                assoc_type(w, item, bounds, ty.as_ref(), link.anchor(&id))?;
                 write!(w, "</code></span></h4>\n")?;
             }
             clean::StrippedItem(..) => return Ok(()),
@@ -3466,7 +3451,7 @@ impl<'a> fmt::Display for Sidebar<'a> {
                 clean::PrimitiveItem(ref p) => sidebar_primitive(fmt, it, p)?,
                 clean::UnionItem(ref u) => sidebar_union(fmt, it, u)?,
                 clean::EnumItem(ref e) => sidebar_enum(fmt, it, e)?,
-                clean::TypedefItem(ref t, _) => sidebar_typedef(fmt, it, t)?,
+                clean::TypedefItem(ref t) => sidebar_typedef(fmt, it, t)?,
                 clean::ModuleItem(ref m) => sidebar_module(fmt, it, &m.items)?,
                 _ => (),
             }
@@ -3528,7 +3513,7 @@ fn sidebar_assoc_items(it: &clean::Item) -> String {
                                   .find(|i| i.inner_impl().trait_.def_id() == c.deref_trait_did) {
                 if let Some(target) = impl_.inner_impl().items.iter().filter_map(|item| {
                     match item.inner {
-                        clean::TypedefItem(ref t, true) => Some(&t.type_),
+                        clean::AssociatedTypeItem(_, Some(ref t)) => Some(t),
                         _ => None,
                     }
                 }).next() {

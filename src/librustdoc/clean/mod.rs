@@ -403,7 +403,7 @@ pub enum ItemEnum {
     EnumItem(Enum),
     FunctionItem(Function),
     ModuleItem(Module),
-    TypedefItem(Typedef, bool /* is associated type */),
+    TypedefItem(Typedef),
     StaticItem(Static),
     ConstantItem(Constant),
     TraitItem(Trait),
@@ -436,7 +436,7 @@ impl ItemEnum {
             ItemEnum::StructItem(ref s) => &s.generics,
             ItemEnum::EnumItem(ref e) => &e.generics,
             ItemEnum::FunctionItem(ref f) => &f.generics,
-            ItemEnum::TypedefItem(ref t, _) => &t.generics,
+            ItemEnum::TypedefItem(ref t) => &t.generics,
             ItemEnum::TraitItem(ref t) => &t.generics,
             ItemEnum::ImplItem(ref i) => &i.generics,
             ItemEnum::TyMethodItem(ref i) => &i.generics,
@@ -1419,14 +1419,9 @@ impl Clean<Item> for hir::ImplItem {
             hir::ImplItemKind::Method(ref sig, body) => {
                 MethodItem((sig, &self.generics, body).clean(cx))
             }
-            hir::ImplItemKind::Type(ref ty) => TypedefItem(Typedef {
-                type_: ty.clean(cx),
-                generics: Generics {
-                    lifetimes: Vec::new(),
-                    type_params: Vec::new(),
-                    where_predicates: Vec::new()
-                },
-            }, true),
+            hir::ImplItemKind::Type(ref ty) => {
+                AssociatedTypeItem(Vec::new(), Some(ty.clean(cx)))
+            },
         };
         Item {
             name: Some(self.name.clean(cx)),
@@ -1445,8 +1440,13 @@ impl<'tcx> Clean<Item> for ty::AssociatedItem {
     fn clean(&self, cx: &DocContext) -> Item {
         let inner = match self.kind {
             ty::AssociatedKind::Const => {
+                let default = if self.defaultness.has_value() {
+                    Some(inline::print_inlined_const(cx, self.def_id))
+                } else {
+                    None
+                };
                 let ty = cx.tcx.type_of(self.def_id);
-                AssociatedConstItem(ty.clean(cx), None)
+                AssociatedConstItem(ty.clean(cx), default)
             }
             ty::AssociatedKind::Method => {
                 let generics = (cx.tcx.generics_of(self.def_id),
@@ -1477,18 +1477,21 @@ impl<'tcx> Clean<Item> for ty::AssociatedItem {
                 }
 
                 let provided = match self.container {
-                    ty::ImplContainer(_) => false,
+                    ty::ImplContainer(_) => true,
                     ty::TraitContainer(_) => self.defaultness.has_value()
                 };
                 if provided {
+                    let constness = if cx.tcx.is_const_fn(self.def_id) {
+                        hir::Constness::Const
+                    } else {
+                        hir::Constness::NotConst
+                    };
                     MethodItem(Method {
                         unsafety: sig.unsafety(),
                         generics,
                         decl,
                         abi: sig.abi(),
-
-                        // trait methods cannot (currently, at least) be const
-                        constness: hir::Constness::NotConst,
+                        constness,
                     })
                 } else {
                     TyMethodItem(TyMethod {
@@ -1502,14 +1505,14 @@ impl<'tcx> Clean<Item> for ty::AssociatedItem {
             ty::AssociatedKind::Type => {
                 let my_name = self.name.clean(cx);
 
-                let mut bounds = if let ty::TraitContainer(did) = self.container {
+                let (bounds, ty) = if let ty::TraitContainer(did) = self.container {
                     // When loading a cross-crate associated type, the bounds for this type
                     // are actually located on the trait/impl itself, so we need to load
                     // all of the generics from there and then look for bounds that are
                     // applied to this associated type in question.
                     let predicates = cx.tcx.predicates_of(did);
                     let generics = (cx.tcx.generics_of(did), &predicates).clean(cx);
-                    generics.where_predicates.iter().filter_map(|pred| {
+                    let mut bounds = generics.where_predicates.iter().filter_map(|pred| {
                         let (name, self_type, trait_, bounds) = match *pred {
                             WherePredicate::BoundPredicate {
                                 ty: QPath { ref name, ref self_type, ref trait_ },
@@ -1527,34 +1530,38 @@ impl<'tcx> Clean<Item> for ty::AssociatedItem {
                             _ => return None,
                         }
                         Some(bounds)
-                    }).flat_map(|i| i.iter().cloned()).collect::<Vec<_>>()
+                    }).flat_map(|i| i.iter().cloned()).collect::<Vec<_>>();
+                    // Our Sized/?Sized bound didn't get handled when creating the generics
+                    // because we didn't actually get our whole set of bounds until just now
+                    // (some of them may have come from the trait). If we do have a sized
+                    // bound, we remove it, and if we don't then we add the `?Sized` bound
+                    // at the end.
+                    match bounds.iter().position(|b| b.is_sized_bound(cx)) {
+                        Some(i) => { bounds.remove(i); }
+                        None => bounds.push(TyParamBound::maybe_sized(cx)),
+                    };
+                    let ty = if self.defaultness.has_value() {
+                        Some(cx.tcx.type_of(self.def_id))
+                    } else {
+                        None
+                    };
+                    (bounds, ty)
                 } else {
-                    vec![]
-                };
-
-                // Our Sized/?Sized bound didn't get handled when creating the generics
-                // because we didn't actually get our whole set of bounds until just now
-                // (some of them may have come from the trait). If we do have a sized
-                // bound, we remove it, and if we don't then we add the `?Sized` bound
-                // at the end.
-                match bounds.iter().position(|b| b.is_sized_bound(cx)) {
-                    Some(i) => { bounds.remove(i); }
-                    None => bounds.push(TyParamBound::maybe_sized(cx)),
-                }
-
-                let ty = if self.defaultness.has_value() {
-                    Some(cx.tcx.type_of(self.def_id))
-                } else {
-                    None
+                    (Vec::new(), Some(cx.tcx.type_of(self.def_id)))
                 };
 
                 AssociatedTypeItem(bounds, ty.clean(cx))
             }
         };
 
+        let visibility = match self.container {
+            ty::ImplContainer(_) => self.vis.clean(cx),
+            ty::TraitContainer(_) => None,
+        };
+
         Item {
             name: Some(self.name.clean(cx)),
-            visibility: Some(Inherited),
+            visibility,
             stability: get_stability(cx, self.def_id),
             deprecation: get_deprecation(cx, self.def_id),
             def_id: self.def_id,
@@ -2512,7 +2519,7 @@ impl Clean<Item> for doctree::Typedef {
             inner: TypedefItem(Typedef {
                 type_: self.ty.clean(cx),
                 generics: self.gen.clean(cx),
-            }, false),
+            }),
         }
     }
 }
@@ -2684,7 +2691,7 @@ fn build_deref_target_impls(cx: &DocContext,
 
     for item in items {
         let target = match item.inner {
-            TypedefItem(ref t, true) => &t.type_,
+            AssociatedTypeItem(_, Some(ref t)) => t,
             _ => continue,
         };
         let primitive = match *target {
