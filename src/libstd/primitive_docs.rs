@@ -512,8 +512,6 @@ mod prim_str { }
 /// If every type inside a tuple implements one of the following traits, then a
 /// tuple itself also implements it.
 ///
-/// * [`Clone`]
-/// * [`Copy`]
 /// * [`PartialEq`]
 /// * [`Eq`]
 /// * [`PartialOrd`]
@@ -534,6 +532,11 @@ mod prim_str { }
 ///
 /// Due to a temporary restriction in Rust's type system, these traits are only
 /// implemented on tuples of arity 12 or less. In the future, this may change.
+///
+/// Additionally tuples of *any* size implement [`Clone`] if every type inside
+/// implements [`Clone`] and [`Copy`] if every type inside implements [`Copy`].
+/// This works because the [`Clone`][clone] and [`Copy`][copy] traits are
+/// specially known to the compiler.
 ///
 /// # Examples
 ///
@@ -927,7 +930,6 @@ mod prim_ref { }
 ///
 /// Function pointers implement the following traits:
 ///
-/// * [`Clone`]
 /// * [`PartialEq`]
 /// * [`Eq`]
 /// * [`PartialOrd`]
@@ -949,9 +951,9 @@ mod prim_ref { }
 /// functions that take 12 arguments or less, with the `"Rust"` and `"C"` ABIs. In the future, this
 /// may change.
 ///
-/// In addition, function pointers of *any* signature, ABI, or safety are [`Copy`], and all *safe*
-/// function pointers implement [`Fn`], [`FnMut`], and [`FnOnce`]. This works because these traits
-/// are specially known to the compiler.
+/// In addition, function pointers of *any* signature, ABI, or safety are [`Copy`] and [`Clone`],
+/// and all *safe* function pointers implement [`Fn`], [`FnMut`], and [`FnOnce`]. This works because
+/// these traits are specially known to the compiler.
 ///
 /// [`Copy`]: marker/trait.Copy.html
 #[stable(feature = "rust1", since = "1.0.0")]
