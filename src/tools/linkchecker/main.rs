@@ -27,11 +27,16 @@
 use std::env;
 use std::fs::File;
 use std::io::prelude::*;
-use std::path::{Path, PathBuf, Component};
+use std::path::{Path, PathBuf};
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
 
 use Redirect::*;
+
+extern crate url;
+
+use url::percent_encoding::percent_decode;
+use url::Url;
 
 macro_rules! t {
     ($e:expr) => (match $e {
@@ -69,32 +74,15 @@ struct FileEntry {
 
 type Cache = HashMap<PathBuf, FileEntry>;
 
-fn small_url_encode(s: &str) -> String {
-    s.replace("<", "%3C")
-     .replace(">", "%3E")
-     .replace(" ", "%20")
-     .replace("?", "%3F")
-     .replace("'", "%27")
-     .replace("&", "%26")
-     .replace(",", "%2C")
-     .replace(":", "%3A")
-     .replace(";", "%3B")
-     .replace("[", "%5B")
-     .replace("]", "%5D")
-}
-
 impl FileEntry {
     fn parse_ids(&mut self, file: &Path, contents: &str, errors: &mut bool) {
         if self.ids.is_empty() {
             with_attrs_in_source(contents, " id", |fragment, i, _| {
                 let frag = fragment.trim_left_matches("#").to_owned();
-                let encoded = small_url_encode(&frag);
                 if !self.ids.insert(frag) {
                     *errors = true;
                     println!("{}:{}: id is not unique: `{}`", file.display(), i, fragment);
                 }
-                // Just in case, we also add the encoded id.
-                self.ids.insert(encoded);
             });
         }
     }
@@ -135,12 +123,11 @@ fn check(cache: &mut Cache,
         return None;
     }
     // FIXME(#32553)
-    if file.ends_with("string/struct.String.html") {
+    if file.ends_with("alloc/string/struct.String.html") {
         return None;
     }
     // FIXME(#32130)
     if file.ends_with("btree_set/struct.BTreeSet.html") ||
-       file.ends_with("struct.BTreeSet.html") ||
        file.ends_with("btree_map/struct.BTreeMap.html") ||
        file.ends_with("hash_map/struct.HashMap.html") ||
        file.ends_with("hash_set/struct.HashSet.html") {
@@ -158,35 +145,30 @@ fn check(cache: &mut Cache,
              .parse_ids(&pretty_file, &contents, errors);
     }
 
+    let file_url = Url::from_file_path(file).unwrap();
+
     // Search for anything that's the regex 'href[ ]*=[ ]*".*?"'
     with_attrs_in_source(&contents, " href", |url, i, base| {
+        let url = match file_url.join(base).unwrap().join(url) {
+            Ok(url) => url,
+            Err(e) => {
+                *errors = true;
+                println!("{}:{}: invalid URL ({}) - `{}`",
+                         pretty_file.display(),
+                         i + 1,
+                         e,
+                         url);
+                return;
+            }
+        };
+
         // Ignore external URLs
-        if url.starts_with("http:") || url.starts_with("https:") ||
-           url.starts_with("javascript:") || url.starts_with("ftp:") ||
-           url.starts_with("irc:") || url.starts_with("data:") {
+        if url.scheme() != "file" {
             return;
         }
-        let mut parts = url.splitn(2, "#");
-        let url = parts.next().unwrap();
-        let fragment = parts.next();
-        let mut parts = url.splitn(2, "?");
-        let url = parts.next().unwrap();
 
-        // Once we've plucked out the URL, parse it using our base url and
-        // then try to extract a file path.
-        let mut path = file.to_path_buf();
-        if !base.is_empty() || !url.is_empty() {
-            path.pop();
-            for part in Path::new(base).join(url).components() {
-                match part {
-                    Component::Prefix(_) |
-                    Component::RootDir => panic!(),
-                    Component::CurDir => {}
-                    Component::ParentDir => { path.pop(); }
-                    Component::Normal(s) => { path.push(s); }
-                }
-            }
-        }
+        let path = url.to_file_path().unwrap();
+        let fragment = url.fragment().map(|s| percent_decode(s.as_bytes()).decode_utf8().unwrap());
 
         // Alright, if we've found a file name then this file had better
         // exist! If it doesn't then we register and print an error.
@@ -236,7 +218,7 @@ fn check(cache: &mut Cache,
                 let entry = &mut cache.get_mut(&pretty_path).unwrap();
                 entry.parse_ids(&pretty_path, &contents, errors);
 
-                if !entry.ids.contains(*fragment) {
+                if !entry.ids.contains(&**fragment) {
                     *errors = true;
                     print!("{}:{}: broken link fragment ",
                            pretty_file.display(),

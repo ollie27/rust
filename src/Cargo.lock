@@ -967,6 +967,9 @@ dependencies = [
 [[package]]
 name = "linkchecker"
 version = "0.1.0"
+dependencies = [
+ "url 1.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "log"
