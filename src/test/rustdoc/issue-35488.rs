@@ -15,7 +15,7 @@ mod foo {
     pub use self::Foo::*;
 }
 
-// @has 'issue_35488/index.html' '//code' 'pub use self::Foo::*;'
+// @has 'issue_35488/index.html' '//code' 'pub use issue_35488::Foo::*;'
 // @has 'issue_35488/enum.Foo.html'
 pub use self::foo::*;
 

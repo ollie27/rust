@@ -50,9 +50,9 @@ pub use self::sub::{C2, f2, K as K2};
 // @has foreigntype_reexport/index.html '//a[@class="foreigntype"]' 'C'
 // @has foreigntype_reexport/index.html '//a[@class="fn"]' 'f'
 // @has foreigntype_reexport/index.html '//a[@class="static"]' 'K3'
-// @has foreigntype_reexport/index.html '//code' 'pub use self::sub2::C as C3;'
-// @has foreigntype_reexport/index.html '//code' 'pub use self::sub2::f as f3;'
-// @has foreigntype_reexport/index.html '//code' 'pub use self::sub2::K3;'
+// @has foreigntype_reexport/index.html '//code' 'pub use foreigntype_reexport::sub2::C as C3;'
+// @has foreigntype_reexport/index.html '//code' 'pub use foreigntype_reexport::sub2::f as f3;'
+// @has foreigntype_reexport/index.html '//code' 'pub use foreigntype_reexport::sub2::K3;'
 pub use self::sub2::{C as C3, f as f3, K3};
 
 // @has foreigntype_reexport/foreigntype.C4.html
