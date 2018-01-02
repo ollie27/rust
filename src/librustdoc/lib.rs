@@ -19,6 +19,7 @@
 #![feature(box_patterns)]
 #![feature(box_syntax)]
 #![feature(libc)]
+#![feature(option_filter)]
 #![feature(set_stdio)]
 #![feature(slice_patterns)]
 #![feature(test)]

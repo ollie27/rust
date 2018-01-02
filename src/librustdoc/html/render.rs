@@ -3721,10 +3721,17 @@ fn sidebar_assoc_items(it: &clean::Item) -> String {
                         _ => None,
                     }
                 }).next() {
-                    let inner_impl = target.def_id().or(target.primitive_type().and_then(|prim| {
-                        c.primitive_locations.get(&prim).cloned()
-                    })).and_then(|did| c.impls.get(&did));
-                    if let Some(impls) = inner_impl {
+                    let inner_impls = target
+                        .def_id()
+                        .and_then(|did| c.impls.get(&did))
+                        .map(|impls| {
+                            impls
+                                .iter()
+                                .filter(|i| i.inner_impl().trait_.is_none())
+                                .collect::<Vec<_>>()
+                        })
+                        .filter(|v| !v.is_empty());
+                    if let Some(impls) = inner_impls {
                         out.push_str("<a class=\"sidebar-title\" href=\"#deref-methods\">");
                         out.push_str(&format!("Methods from {}&lt;Target={}&gt;",
                                               Escape(&format!("{:#}",
@@ -3732,7 +3739,6 @@ fn sidebar_assoc_items(it: &clean::Item) -> String {
                                               Escape(&format!("{:#}", target))));
                         out.push_str("</a>");
                         let ret = impls.iter()
-                                       .filter(|i| i.inner_impl().trait_.is_none())
                                        .flat_map(|i| get_methods(i.inner_impl(), true))
                                        .collect::<String>();
                         out.push_str(&format!("<div class=\"sidebar-links\">{}</div>", ret));
