@@ -68,7 +68,7 @@ impl<'a, 'b, 'tcx> LibEmbargoVisitor<'a, 'b, 'tcx> {
         }
 
         for item in self.cx.tcx.item_children(def_id).iter() {
-            if !item.is_import || item.vis == Visibility::Public {
+            if item.vis == Visibility::Public {
                 self.visit_item(item.def);
             }
         }
