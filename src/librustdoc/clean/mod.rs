@@ -28,6 +28,7 @@ use syntax::symbol::keywords;
 use syntax_pos::{self, DUMMY_SP, Pos, FileName};
 
 use rustc::middle::const_val::ConstVal;
+use rustc::middle::exported_symbols::SymbolExportLevel;
 use rustc::middle::privacy::AccessLevels;
 use rustc::middle::resolve_lifetime as rl;
 use rustc::middle::lang_items;
@@ -122,6 +123,7 @@ pub struct Crate {
     // Only here so that they can be filtered through the rustdoc passes.
     pub external_traits: FxHashMap<DefId, Trait>,
     pub masked_crates: FxHashSet<CrateNum>,
+    pub exported_symbols: Vec<(String, Option<DefId>, SymbolExportLevel)>,
 }
 
 impl<'a, 'tcx> Clean<Crate> for visit_ast::RustdocVisitor<'a, 'tcx> {
@@ -182,6 +184,11 @@ impl<'a, 'tcx> Clean<Crate> for visit_ast::RustdocVisitor<'a, 'tcx> {
         let mut access_levels = cx.access_levels.borrow_mut();
         let mut external_traits = cx.external_traits.borrow_mut();
 
+        let mut exported_symbols = (*cx.tcx.exported_symbols(LOCAL_CRATE)).clone();
+        for &cnum in cx.tcx.crates().iter() {
+            exported_symbols.extend(cx.tcx.exported_symbols(cnum).iter().cloned());
+        }
+
         Crate {
             name,
             version: None,
@@ -192,6 +199,7 @@ impl<'a, 'tcx> Clean<Crate> for visit_ast::RustdocVisitor<'a, 'tcx> {
             access_levels: Arc::new(mem::replace(&mut access_levels, Default::default())),
             external_traits: mem::replace(&mut external_traits, Default::default()),
             masked_crates,
+            exported_symbols,
         }
     }
 }

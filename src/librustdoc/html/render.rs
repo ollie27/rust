@@ -56,6 +56,7 @@ use serialize::json::{ToJson, Json, as_json};
 use syntax::{abi, ast};
 use syntax::codemap::FileName;
 use rustc::hir::def_id::{CrateNum, CRATE_DEF_INDEX, DefId};
+use rustc::middle::exported_symbols::SymbolExportLevel;
 use rustc::middle::privacy::AccessLevels;
 use rustc::middle::stability;
 use rustc::hir;
@@ -70,6 +71,7 @@ use html::format::{ConstnessSpace};
 use html::format::{TyParamBounds, WhereClause, href, AbiSpace};
 use html::format::{VisSpace, Method, UnsafetySpace, MutableSpace};
 use html::format::fmt_impl_for_trait_page;
+use html::format::HRef;
 use html::item_type::ItemType;
 use html::markdown::{self, Markdown, MarkdownHtml, MarkdownSummaryLine, RenderType};
 use html::{highlight, layout};
@@ -306,6 +308,8 @@ pub struct Cache {
     // yet when its implementation methods are being indexed. Caches such methods
     // and their parent id here and indexes them at the end of crate parsing.
     orphan_impl_items: Vec<(DefId, clean::Item)>,
+
+    exported_symbols: Vec<(String, Option<DefId>, SymbolExportLevel)>,
 }
 
 /// Temporary storage for data obtained during `RustdocVisitor::clean()`.
@@ -595,6 +599,7 @@ pub fn run(mut krate: clean::Crate,
         owned_box_did,
         masked_crates: mem::replace(&mut krate.masked_crates, FxHashSet()),
         typarams: external_typarams,
+        exported_symbols: mem::replace(&mut krate.exported_symbols, Vec::new()),
     };
 
     // Cache where all our extern crates are located
@@ -2087,8 +2092,6 @@ fn item_module(w: &mut fmt::Formatter, cx: &Context,
 
         match myitem.inner {
             clean::ExternCrateItem(ref name, ref src) => {
-                use html::format::HRef;
-
                 match *src {
                     Some(ref src) => {
                         write!(w, "<tr><td><code>{}extern crate {} as {};",
@@ -2163,6 +2166,22 @@ fn item_module(w: &mut fmt::Formatter, cx: &Context,
 
     if curty.is_some() {
         write!(w, "</table>")?;
+    }
+    match item.inner {
+        clean::ModuleItem(ref m) => {
+            if m.is_crate {
+                for &(ref name, def_id, level) in &cache().exported_symbols {
+                    if level.is_below_threshold(SymbolExportLevel::C) {
+                        if let Some(def_id) = def_id {
+                            write!(w, "<br>{}", HRef::new(def_id, name))?;
+                        } else {
+                            write!(w, "<br>{}", name)?;
+                        }
+                    }
+                }
+            }
+        }
+        _ => unreachable!(),
     }
     Ok(())
 }
