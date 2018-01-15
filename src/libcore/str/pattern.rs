@@ -481,7 +481,7 @@ impl<'a> Pattern<'a> for char {
 // Impl for a MultiCharEq wrapper
 /////////////////////////////////////////////////////////////////////////////
 
-#[doc(hidden)]
+
 trait MultiCharEq {
     fn matches(&mut self, c: char) -> bool;
 }

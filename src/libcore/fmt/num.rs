@@ -20,7 +20,7 @@ use slice;
 use ptr;
 use mem;
 
-#[doc(hidden)]
+
 trait Int: PartialEq + PartialOrd + Div<Output=Self> + Rem<Output=Self> +
            Sub<Output=Self> + Copy {
     fn zero() -> Self;
@@ -46,7 +46,7 @@ macro_rules! doit {
 doit! { i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize }
 
 /// A type that represents a specific radix
-#[doc(hidden)]
+
 trait GenericRadix {
     /// The number of digits.
     fn base(&self) -> u8;

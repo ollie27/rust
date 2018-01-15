@@ -577,7 +577,7 @@ impl<'a, I, T: 'a> FusedIterator for Cloned<I>
     where I: FusedIterator<Item=&'a T>, T: Clone
 {}
 
-#[doc(hidden)]
+
 default unsafe impl<'a, I, T: 'a> TrustedRandomAccess for Cloned<I>
     where I: TrustedRandomAccess<Item=&'a T>, T: Clone
 {
@@ -589,7 +589,7 @@ default unsafe impl<'a, I, T: 'a> TrustedRandomAccess for Cloned<I>
     fn may_have_side_effect() -> bool { true }
 }
 
-#[doc(hidden)]
+
 unsafe impl<'a, I, T: 'a> TrustedRandomAccess for Cloned<I>
     where I: TrustedRandomAccess<Item=&'a T>, T: Copy
 {
@@ -999,7 +999,7 @@ impl<A, B> DoubleEndedIterator for Zip<A, B> where
 }
 
 // Zip specialization trait
-#[doc(hidden)]
+
 trait ZipImpl<A, B> {
     type Item;
     fn new(a: A, b: B) -> Self;
@@ -1011,7 +1011,7 @@ trait ZipImpl<A, B> {
 }
 
 // General Zip impl
-#[doc(hidden)]
+
 impl<A, B> ZipImpl<A, B> for Zip<A, B>
     where A: Iterator, B: Iterator
 {
@@ -1074,7 +1074,7 @@ impl<A, B> ZipImpl<A, B> for Zip<A, B>
     }
 }
 
-#[doc(hidden)]
+
 impl<A, B> ZipImpl<A, B> for Zip<A, B>
     where A: TrustedRandomAccess, B: TrustedRandomAccess
 {
@@ -1152,7 +1152,7 @@ impl<A, B> ZipImpl<A, B> for Zip<A, B>
 impl<A, B> ExactSizeIterator for Zip<A, B>
     where A: ExactSizeIterator, B: ExactSizeIterator {}
 
-#[doc(hidden)]
+
 unsafe impl<A, B> TrustedRandomAccess for Zip<A, B>
     where A: TrustedRandomAccess,
           B: TrustedRandomAccess,
@@ -1317,7 +1317,7 @@ unsafe impl<B, I, F> TrustedLen for Map<I, F>
     where I: TrustedLen,
           F: FnMut(I::Item) -> B {}
 
-#[doc(hidden)]
+
 unsafe impl<B, I, F> TrustedRandomAccess for Map<I, F>
     where I: TrustedRandomAccess,
           F: FnMut(I::Item) -> B,
@@ -1709,7 +1709,7 @@ impl<I> ExactSizeIterator for Enumerate<I> where I: ExactSizeIterator {
     }
 }
 
-#[doc(hidden)]
+
 unsafe impl<I> TrustedRandomAccess for Enumerate<I>
     where I: TrustedRandomAccess
 {

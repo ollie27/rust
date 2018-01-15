@@ -39,7 +39,7 @@ static POW10TO256: [Digit; 27] =
      0xcf4a6e70, 0xd595d80f, 0x26b2716e, 0xadc666b0, 0x1d153624, 0x3c42d35a, 0x63ff540e,
      0xcc5573c0, 0x65f9ef17, 0x55bc28f2, 0x80dcc7f7, 0xf46eeddc, 0x5fdcefce, 0x553f7];
 
-#[doc(hidden)]
+
 pub fn mul_pow10(x: &mut Big, n: usize) -> &mut Big {
     debug_assert!(n < 512);
     if n &   7 != 0 { x.mul_small(POW10[n & 7]); }

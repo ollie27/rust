@@ -657,7 +657,7 @@ enum Flavor<T> {
     Sync(Arc<sync::Packet<T>>),
 }
 
-#[doc(hidden)]
+
 trait UnsafeFlavor<T> {
     fn inner_unsafe(&self) -> &UnsafeCell<Flavor<T>>;
     unsafe fn inner_mut(&self) -> &mut Flavor<T> {

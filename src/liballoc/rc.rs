@@ -1335,7 +1335,7 @@ impl<T> Default for Weak<T> {
 // This should have negligible overhead since you don't actually need to
 // clone these much in Rust thanks to ownership and move-semantics.
 
-#[doc(hidden)]
+
 trait RcBoxPtr<T: ?Sized> {
     fn inner(&self) -> &RcBox<T>;
 

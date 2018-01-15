@@ -1575,7 +1575,7 @@ impl<T> PointerExt for *mut T {
 
 /// An internal abstraction over the splitting iterators, so that
 /// splitn, splitn_mut etc can be implemented once.
-#[doc(hidden)]
+
 trait SplitIter: DoubleEndedIterator {
     /// Marks the underlying iterator as complete, extracting the remaining
     /// portion of the slice.
@@ -2130,7 +2130,7 @@ impl<'a, T> ExactSizeIterator for Windows<'a, T> {}
 #[unstable(feature = "fused", issue = "35602")]
 impl<'a, T> FusedIterator for Windows<'a, T> {}
 
-#[doc(hidden)]
+
 unsafe impl<'a, T> TrustedRandomAccess for Windows<'a, T> {
     unsafe fn get_unchecked(&mut self, i: usize) -> &'a [T] {
         from_raw_parts(self.v.as_ptr().offset(i as isize), self.size)
@@ -2249,7 +2249,7 @@ impl<'a, T> ExactSizeIterator for Chunks<'a, T> {}
 #[unstable(feature = "fused", issue = "35602")]
 impl<'a, T> FusedIterator for Chunks<'a, T> {}
 
-#[doc(hidden)]
+
 unsafe impl<'a, T> TrustedRandomAccess for Chunks<'a, T> {
     unsafe fn get_unchecked(&mut self, i: usize) -> &'a [T] {
         let start = i * self.chunk_size;
@@ -2365,7 +2365,7 @@ impl<'a, T> ExactSizeIterator for ChunksMut<'a, T> {}
 #[unstable(feature = "fused", issue = "35602")]
 impl<'a, T> FusedIterator for ChunksMut<'a, T> {}
 
-#[doc(hidden)]
+
 unsafe impl<'a, T> TrustedRandomAccess for ChunksMut<'a, T> {
     unsafe fn get_unchecked(&mut self, i: usize) -> &'a mut [T] {
         let start = i * self.chunk_size;
@@ -2506,7 +2506,7 @@ impl<T: PartialOrd> PartialOrd for [T] {
     }
 }
 
-#[doc(hidden)]
+
 // intermediate trait for specialization of slice's PartialEq
 trait SlicePartialEq<B> {
     fn equal(&self, other: &[B]) -> bool;
@@ -2552,7 +2552,7 @@ impl<A> SlicePartialEq<A> for [A]
     }
 }
 
-#[doc(hidden)]
+
 // intermediate trait for specialization of slice's PartialOrd
 trait SlicePartialOrd<B> {
     fn partial_compare(&self, other: &[B]) -> Option<Ordering>;
@@ -2588,7 +2588,7 @@ impl<A> SlicePartialOrd<A> for [A]
     }
 }
 
-#[doc(hidden)]
+
 // intermediate trait for specialization of slice's Ord
 trait SliceOrd<B> {
     fn compare(&self, other: &[B]) -> Ordering;
@@ -2635,7 +2635,7 @@ impl SliceOrd<u8> for [u8] {
     }
 }
 
-#[doc(hidden)]
+
 /// Trait implemented for types that can be compared for equality using
 /// their bytewise representation
 trait BytewiseEquality { }
@@ -2651,7 +2651,7 @@ macro_rules! impl_marker_for {
 impl_marker_for!(BytewiseEquality,
                  u8 i8 u16 i16 u32 i32 u64 i64 usize isize char bool);
 
-#[doc(hidden)]
+
 unsafe impl<'a, T> TrustedRandomAccess for Iter<'a, T> {
     unsafe fn get_unchecked(&mut self, i: usize) -> &'a T {
         &*self.ptr.offset(i as isize)
@@ -2659,7 +2659,7 @@ unsafe impl<'a, T> TrustedRandomAccess for Iter<'a, T> {
     fn may_have_side_effect() -> bool { false }
 }
 
-#[doc(hidden)]
+
 unsafe impl<'a, T> TrustedRandomAccess for IterMut<'a, T> {
     unsafe fn get_unchecked(&mut self, i: usize) -> &'a mut T {
         &mut *self.ptr.offset(i as isize)

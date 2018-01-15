@@ -8,7 +8,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-#![doc(hidden)]
+
 
 macro_rules! int_module {
     ($T:ident) => (int_module!($T, #[stable(feature = "rust1", since = "1.0.0")]););

@@ -39,7 +39,7 @@ use alloc::borrow::Borrow;
 ////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-#[doc(hidden)]
+
 pub struct WindowsEnvKey(OsString);
 
 impl From<OsString> for WindowsEnvKey {

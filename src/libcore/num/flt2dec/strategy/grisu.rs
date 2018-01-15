@@ -21,8 +21,8 @@ use num::flt2dec::{Decoded, MAX_SIG_DIGITS, round_up};
 
 
 // see the comments in `format_shortest_opt` for the rationale.
-#[doc(hidden)] pub const ALPHA: i16 = -60;
-#[doc(hidden)] pub const GAMMA: i16 = -32;
+pub const ALPHA: i16 = -60;
+pub const GAMMA: i16 = -32;
 
 /*
 # the following Python code generates this table:
@@ -34,7 +34,7 @@ for i in xrange(-308, 333, 8):
     print '    (%#018x, %5d, %4d),' % (f, e, i)
 */
 
-#[doc(hidden)]
+
 pub static CACHED_POW10: [(u64, i16, i16); 81] = [ // (f, e, k)
     (0xe61acf033d1a45df, -1087, -308),
     (0xab70fe17c79ac6ca, -1060, -300),
@@ -119,10 +119,10 @@ pub static CACHED_POW10: [(u64, i16, i16); 81] = [ // (f, e, k)
     (0xeb96bf6ebadf77d9,  1039,  332),
 ];
 
-#[doc(hidden)] pub const CACHED_POW10_FIRST_E: i16 = -1087;
-#[doc(hidden)] pub const CACHED_POW10_LAST_E: i16 = 1039;
+pub const CACHED_POW10_FIRST_E: i16 = -1087;
+pub const CACHED_POW10_LAST_E: i16 = 1039;
 
-#[doc(hidden)]
+
 pub fn cached_power(alpha: i16, gamma: i16) -> (i16, Fp) {
     let offset = CACHED_POW10_FIRST_E as i32;
     let range = (CACHED_POW10.len() as i32) - 1;
@@ -134,7 +134,7 @@ pub fn cached_power(alpha: i16, gamma: i16) -> (i16, Fp) {
 }
 
 /// Given `x > 0`, returns `(k, 10^k)` such that `10^k <= x < 10^(k+1)`.
-#[doc(hidden)]
+
 pub fn max_pow10_no_more_than(x: u32) -> (u8, u32) {
     debug_assert!(x > 0);
 

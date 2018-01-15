@@ -97,7 +97,7 @@ pub enum Shutdown {
     Both,
 }
 
-#[doc(hidden)]
+
 trait NetInt {
     fn from_be(i: Self) -> Self;
     fn to_be(&self) -> Self;

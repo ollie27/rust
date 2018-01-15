@@ -255,7 +255,7 @@ pub enum Bound<T> {
 }
 
 /// An intermediate trait for specialization of `Extend`.
-#[doc(hidden)]
+
 trait SpecExtend<I: IntoIterator> {
     /// Extends `self` with the contents of the given iterator.
     fn spec_extend(&mut self, iter: I);

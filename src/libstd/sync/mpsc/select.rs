@@ -102,14 +102,14 @@ pub struct Handle<'rx, T:Send+'rx> {
 
 struct Packets { cur: *mut Handle<'static, ()> }
 
-#[doc(hidden)]
+
 #[derive(PartialEq, Eq)]
 pub enum StartResult {
     Installed,
     Abort,
 }
 
-#[doc(hidden)]
+
 pub trait Packet {
     fn can_recv(&self) -> bool;
     fn start_selection(&self, token: SignalToken) -> StartResult;

@@ -400,7 +400,7 @@ fn default_hook(info: &PanicInfo) {
 
 
 #[cfg(not(test))]
-#[doc(hidden)]
+
 #[unstable(feature = "update_panic_count", issue = "0")]
 pub fn update_panic_count(amt: isize) -> usize {
     use cell::Cell;

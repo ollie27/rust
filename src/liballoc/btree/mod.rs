@@ -13,7 +13,7 @@ mod search;
 pub mod map;
 pub mod set;
 
-#[doc(hidden)]
+
 trait Recover<Q: ?Sized> {
     type Key;
 

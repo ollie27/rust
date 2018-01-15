@@ -302,7 +302,7 @@ impl<'a> ArgumentV1<'a> {
         Display::fmt(x, f)
     }
 
-    #[doc(hidden)]
+
     #[unstable(feature = "fmt_internals", reason = "internal to format_args!",
                issue = "0")]
     pub fn new<'b, T>(x: &'b T,
@@ -315,7 +315,7 @@ impl<'a> ArgumentV1<'a> {
         }
     }
 
-    #[doc(hidden)]
+
     #[unstable(feature = "fmt_internals", reason = "internal to format_args!",
                issue = "0")]
     pub fn from_usize(x: &usize) -> ArgumentV1 {

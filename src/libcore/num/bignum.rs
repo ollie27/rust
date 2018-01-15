@@ -489,7 +489,7 @@ pub type Digit32 = u32;
 define_bignum!(Big32x40: type=Digit32, n=40);
 
 // this one is used for testing only.
-#[doc(hidden)]
+
 pub mod tests {
     define_bignum!(Big8x3: type=u8, n=3);
 }

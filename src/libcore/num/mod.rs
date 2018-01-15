@@ -3178,7 +3178,7 @@ mod ptr_try_from_impls {
     rev!(try_from_both_bounded, isize, i128);
 }
 
-#[doc(hidden)]
+
 trait FromStrRadixHelper: PartialOrd + Copy {
     fn min_value() -> Self;
     fn max_value() -> Self;
