@@ -628,6 +628,12 @@ pub fn run(mut krate: clean::Crate,
 
     cache.stack.push(krate.name.clone());
     krate = cache.fold_crate(krate);
+    for imp in cache.implementors.values_mut() {
+        imp.sort_by_key(|imp| imp.impl_item.def_id);
+    }
+    for imp in cache.impls.values_mut() {
+        imp.sort_by_key(|imp| imp.impl_item.def_id);
+    }
 
     // Build our search index
     let index = build_index(&krate, &mut cache);
