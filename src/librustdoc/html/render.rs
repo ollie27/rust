@@ -2168,6 +2168,10 @@ fn item_module(w: &mut fmt::Formatter, cx: &Context,
 }
 
 fn short_stability(item: &clean::Item, cx: &Context, show_reason: bool) -> Vec<String> {
+    fn feature_link(cx: &Context, feature_name: &str) -> String {
+        format!("<a href=\"{}unstable-book/library-features/{}.html\">{}</a>", cx.root_path(), feature_name.replace("_", "-"), feature_name)
+    }
+
     let mut stability = vec![];
 
     if let Some(stab) = item.stability.as_ref() {
@@ -2195,12 +2199,12 @@ fn short_stability(item: &clean::Item, cx: &Context, show_reason: bool) -> Vec<S
                                             stab.issue) {
                     (true, &Some(ref tracker_url), Some(issue_no)) if issue_no > 0 =>
                         format!(" (<code>{} </code><a href=\"{}{}\">#{}</a>)",
-                                Escape(&stab.feature), tracker_url, issue_no, issue_no),
+                                feature_link(cx, &stab.feature), tracker_url, issue_no, issue_no),
                     (false, &Some(ref tracker_url), Some(issue_no)) if issue_no > 0 =>
                         format!(" (<a href=\"{}{}\">#{}</a>)", Escape(&tracker_url), issue_no,
                                 issue_no),
                     (true, ..) =>
-                        format!(" (<code>{}</code>)", Escape(&stab.feature)),
+                        format!(" (<code>{}</code>)", feature_link(cx, &stab.feature)),
                     _ => String::new(),
                 };
                 if stab.unstable_reason.is_empty() {
