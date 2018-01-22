@@ -133,12 +133,10 @@ fn check(cache: &mut Cache,
     // whitelists to get this past `make check` today.
     // FIXME(#32129)
     if file.ends_with("std/string/struct.String.html") ||
-       file.ends_with("interpret/struct.ValTy.html") ||
        file.ends_with("symbol/struct.InternedString.html") ||
        file.ends_with("ast/struct.ThinVec.html") ||
        file.ends_with("util/struct.ThinVec.html") ||
        file.ends_with("util/struct.RcSlice.html") ||
-       file.ends_with("layout/struct.TyLayout.html") ||
        file.ends_with("ty/struct.Slice.html") ||
        file.ends_with("ty/enum.Attributes.html") ||
        file.ends_with("ty/struct.SymbolName.html") {

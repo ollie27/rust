@@ -20,6 +20,7 @@
 #![feature(box_syntax)]
 #![feature(fs_read_write)]
 #![feature(libc)]
+#![feature(option_filter)]
 #![feature(set_stdio)]
 #![feature(slice_patterns)]
 #![feature(test)]

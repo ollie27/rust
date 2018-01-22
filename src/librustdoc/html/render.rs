@@ -3625,18 +3625,16 @@ impl<'a> fmt::Display for Sidebar<'a> {
     }
 }
 
-fn get_methods(i: &clean::Impl, for_deref: bool) -> Vec<String> {
+fn get_methods(i: &clean::Impl, render_mode: RenderMode) -> Vec<String> {
     i.items.iter().filter_map(|item| {
-        match item.name {
-            // Maybe check with clean::Visibility::Public as well?
-            Some(ref name) if !name.is_empty() && item.visibility.is_some() && item.is_method() => {
-                if !for_deref || should_render_item(item, false) {
-                    Some(format!("<a href=\"#method.{name}\">{name}</a>", name = name))
-                } else {
-                    None
-                }
-            }
-            _ => None,
+        let render_method_item = match render_mode {
+            RenderMode::Normal => item.is_method(),
+            RenderMode::ForDeref { mut_: deref_mut_ } => should_render_item(&item, deref_mut_),
+        };
+        if render_method_item {
+            Some(format!("<a href=\"#method.{0}\">{0}</a>", item.name.as_ref().unwrap()))
+        } else {
+            None
         }
     }).collect::<Vec<_>>()
 }
@@ -3663,7 +3661,7 @@ fn sidebar_assoc_items(it: &clean::Item) -> String {
     if let Some(v) = c.impls.get(&it.def_id) {
         let ret = v.iter()
                    .filter(|i| i.inner_impl().trait_.is_none())
-                   .flat_map(|i| get_methods(i.inner_impl(), false))
+                   .flat_map(|i| get_methods(i.inner_impl(), RenderMode::Normal))
                    .collect::<String>();
         if !ret.is_empty() {
             out.push_str(&format!("<a class=\"sidebar-title\" href=\"#methods\">Methods\
@@ -3680,20 +3678,37 @@ fn sidebar_assoc_items(it: &clean::Item) -> String {
                         _ => None,
                     }
                 }).next() {
-                    let inner_impl = target.def_id().or(target.primitive_type().and_then(|prim| {
-                        c.primitive_locations.get(&prim).cloned()
-                    })).and_then(|did| c.impls.get(&did));
-                    if let Some(impls) = inner_impl {
+                    let inner_impls = target
+                        .def_id()
+                        .and_then(|did| c.impls.get(&did))
+                        .map(|impls| {
+                            impls
+                                .iter()
+                                .filter(|i| i.inner_impl().trait_.is_none())
+                                .collect::<Vec<_>>()
+                        })
+                        .filter(|v| !v.is_empty());
+                    let has_deref_mut = v.iter()
+                        .filter_map(|i| i.inner_impl().trait_.as_ref())
+                        .any(|t| t.def_id() == c.deref_mut_trait_did);
+                    if let Some(impls) = inner_impls {
                         out.push_str("<a class=\"sidebar-title\" href=\"#deref-methods\">");
                         out.push_str(&format!("Methods from {}&lt;Target={}&gt;",
                                               Escape(&format!("{:#}",
                                                      impl_.inner_impl().trait_.as_ref().unwrap())),
                                               Escape(&format!("{:#}", target))));
                         out.push_str("</a>");
-                        let ret = impls.iter()
-                                       .filter(|i| i.inner_impl().trait_.is_none())
-                                       .flat_map(|i| get_methods(i.inner_impl(), true))
-                                       .collect::<String>();
+                        let ret = impls
+                            .iter()
+                            .flat_map(|i| {
+                                get_methods(
+                                    i.inner_impl(),
+                                    RenderMode::ForDeref {
+                                        mut_: has_deref_mut,
+                                    },
+                                )
+                            })
+                            .collect::<String>();
                         out.push_str(&format!("<div class=\"sidebar-links\">{}</div>", ret));
                     }
                 }
