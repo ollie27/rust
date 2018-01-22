@@ -872,7 +872,7 @@ pub fn render(w: &mut fmt::Formatter,
         let link_out = format!("<a href=\"{link}\"{title}>{content}</a>",
                                link = link_buf,
                                title = title.map_or(String::new(),
-                                                    |t| format!(" title=\"{}\"", t)),
+                                                    |t| format!(" title=\"{}\"", Escape(&t))),
                                content = content.unwrap_or(String::new()));
 
         unsafe { hoedown_buffer_put(ob, link_out.as_ptr(), link_out.len()); }
@@ -1337,9 +1337,6 @@ pub fn markdown_links(md: &str, render_type: RenderType) -> Vec<String> {
                 };
                 (*((*renderer).opaque as *mut hoedown_html_renderer_state)).opaque
                         = &mut opaque as *mut _ as *mut libc::c_void;
-                (*renderer).blockcode = Some(hoedown_block);
-                (*renderer).header = Some(hoedown_header);
-                (*renderer).codespan = Some(hoedown_codespan);
                 (*renderer).link = Some(hoedown_link);
 
                 let document = hoedown_document_new(renderer, HOEDOWN_EXTENSIONS, 16);
@@ -1358,12 +1355,9 @@ pub fn markdown_links(md: &str, render_type: RenderType) -> Vec<String> {
             opts.insert(OPTION_ENABLE_TABLES);
             opts.insert(OPTION_ENABLE_FOOTNOTES);
 
-            let p = Parser::new_ext(md, opts);
-
-            let iter = Footnotes::new(CodeBlocks::new(HeadingLinks::new(p, None)));
             let mut links = vec![];
 
-            for ev in iter {
+            for ev in Parser::new_ext(md, opts) {
                 if let Event::Start(Tag::Link(dest, _)) = ev {
                     debug!("found link: {}", dest);
                     links.push(dest.into_owned());
