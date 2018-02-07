@@ -1796,28 +1796,7 @@ impl<'a> fmt::Display for Item<'a> {
         debug_assert!(!self.item.is_stripped());
         // Write the breadcrumb trail header for the top
         write!(fmt, "\n<h1 class='fqn'><span class='in-band'>")?;
-        match self.item.inner {
-            clean::ModuleItem(ref m) => if m.is_crate {
-                    write!(fmt, "Crate ")?;
-                } else {
-                    write!(fmt, "Module ")?;
-                },
-            clean::FunctionItem(..) | clean::ForeignFunctionItem(..) => write!(fmt, "Function ")?,
-            clean::TraitItem(..) => write!(fmt, "Trait ")?,
-            clean::StructItem(..) => write!(fmt, "Struct ")?,
-            clean::UnionItem(..) => write!(fmt, "Union ")?,
-            clean::EnumItem(..) => write!(fmt, "Enum ")?,
-            clean::TypedefItem(..) => write!(fmt, "Type Definition ")?,
-            clean::MacroItem(..) => write!(fmt, "Macro ")?,
-            clean::PrimitiveItem(..) => write!(fmt, "Primitive Type ")?,
-            clean::StaticItem(..) | clean::ForeignStaticItem(..) => write!(fmt, "Static ")?,
-            clean::ConstantItem(..) => write!(fmt, "Constant ")?,
-            clean::ForeignTypeItem => write!(fmt, "Foreign Type ")?,
-            _ => {
-                // We don't generate pages for any other type.
-                unreachable!();
-            }
-        }
+        write!(fmt, "{}", title_prefix(&self.item))?;
         if !self.item.is_primitive() {
             let cur = &self.cx.current;
             let amt = if self.item.is_mod() { cur.len() - 1 } else { cur.len() };
@@ -1882,6 +1861,28 @@ impl<'a> fmt::Display for Item<'a> {
                 // We don't generate pages for any other type.
                 unreachable!();
             }
+        }
+    }
+}
+
+fn title_prefix(item: &clean::Item) -> &'static str {
+    match item.inner {
+        clean::ModuleItem(ref m) if m.is_crate => "Crate ",
+        clean::ModuleItem(..) => "Module ",
+        clean::FunctionItem(..) | clean::ForeignFunctionItem(..) => "Function ",
+        clean::TraitItem(..) => "Trait ",
+        clean::StructItem(..) => "Struct ",
+        clean::UnionItem(..) => "Union ",
+        clean::EnumItem(..) => "Enum ",
+        clean::TypedefItem(..) => "Type Definition ",
+        clean::MacroItem(..) => "Macro ",
+        clean::PrimitiveItem(..) => "Primitive Type ",
+        clean::StaticItem(..) | clean::ForeignStaticItem(..) => "Static ",
+        clean::ConstantItem(..) => "Constant ",
+        clean::ForeignTypeItem => "Foreign Type ",
+        _ => {
+            // We don't generate pages for any other type.
+            unreachable!();
         }
     }
 }
@@ -3618,53 +3619,33 @@ impl<'a> fmt::Display for Sidebar<'a> {
         let cx = self.cx;
         let it = self.item;
         let parentlen = cx.current.len() - if it.is_mod() {1} else {0};
-        let mut should_close = false;
 
-        if it.is_struct() || it.is_trait() || it.is_primitive() || it.is_union()
-            || it.is_enum() || it.is_mod() || it.is_typedef()
-        {
-            write!(fmt, "<p class='location'>")?;
-            match it.inner {
-                clean::StructItem(..) => write!(fmt, "Struct ")?,
-                clean::TraitItem(..) => write!(fmt, "Trait ")?,
-                clean::PrimitiveItem(..) => write!(fmt, "Primitive Type ")?,
-                clean::UnionItem(..) => write!(fmt, "Union ")?,
-                clean::EnumItem(..) => write!(fmt, "Enum ")?,
-                clean::TypedefItem(..) => write!(fmt, "Type Definition ")?,
-                clean::ForeignTypeItem => write!(fmt, "Foreign Type ")?,
-                clean::ModuleItem(..) => if it.is_crate() {
-                    write!(fmt, "Crate ")?;
-                } else {
-                    write!(fmt, "Module ")?;
-                },
-                _ => (),
-            }
-            write!(fmt, "{}", it.name.as_ref().unwrap())?;
-            write!(fmt, "</p>")?;
+        write!(fmt, "<p class='location'>")?;
+        write!(fmt, "{}", title_prefix(it))?;
+        write!(fmt, "{}", it.name.as_ref().unwrap())?;
+        write!(fmt, "</p>")?;
 
-            if it.is_crate() {
-                if let Some(ref version) = cache().crate_version {
-                    write!(fmt,
-                           "<div class='block version'>\
-                            <p>Version {}</p>\
-                            </div>",
-                           version)?;
-                }
+        if it.is_crate() {
+            if let Some(ref version) = cache().crate_version {
+                write!(fmt,
+                        "<div class='block version'>\
+                        <p>Version {}</p>\
+                        </div>",
+                        version)?;
             }
+        }
 
-            write!(fmt, "<div class=\"sidebar-elems\">")?;
-            should_close = true;
-            match it.inner {
-                clean::StructItem(ref s) => sidebar_struct(fmt, it, s)?,
-                clean::TraitItem(ref t) => sidebar_trait(fmt, it, t)?,
-                clean::PrimitiveItem(ref p) => sidebar_primitive(fmt, it, p)?,
-                clean::UnionItem(ref u) => sidebar_union(fmt, it, u)?,
-                clean::EnumItem(ref e) => sidebar_enum(fmt, it, e)?,
-                clean::TypedefItem(ref t, _) => sidebar_typedef(fmt, it, t)?,
-                clean::ModuleItem(ref m) => sidebar_module(fmt, it, &m.items)?,
-                clean::ForeignTypeItem => sidebar_foreign_type(fmt, it)?,
-                _ => (),
-            }
+        write!(fmt, "<div class=\"sidebar-elems\">")?;
+        match it.inner {
+            clean::StructItem(ref s) => sidebar_struct(fmt, it, s)?,
+            clean::TraitItem(ref t) => sidebar_trait(fmt, it, t)?,
+            clean::PrimitiveItem(ref p) => sidebar_primitive(fmt, it, p)?,
+            clean::UnionItem(ref u) => sidebar_union(fmt, it, u)?,
+            clean::EnumItem(ref e) => sidebar_enum(fmt, it, e)?,
+            clean::TypedefItem(ref t, _) => sidebar_typedef(fmt, it, t)?,
+            clean::ModuleItem(ref m) => sidebar_module(fmt, it, &m.items)?,
+            clean::ForeignTypeItem => sidebar_foreign_type(fmt, it)?,
+            _ => (),
         }
 
         // The sidebar is designed to display sibling functions, modules and
@@ -3704,10 +3685,8 @@ impl<'a> fmt::Display for Sidebar<'a> {
             write!(fmt, "<script defer src=\"{path}sidebar-items.js\"></script>",
                    path = relpath)?;
         }
-        if should_close {
-            // Closes sidebar-elems div.
-            write!(fmt, "</div>")?;
-        }
+        // Closes sidebar-elems div.
+        write!(fmt, "</div>")?;
 
         Ok(())
     }

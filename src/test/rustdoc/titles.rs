@@ -8,6 +8,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+#![feature(extern_types)]
+
 #![crate_name = "foo"]
 
 // @matches 'foo/index.html' '//h1' 'Crate foo'
@@ -34,8 +36,18 @@ pub struct FooStruct;
 // @matches 'foo/enum.FooEnum.html' '//h1' 'Enum foo::FooEnum'
 pub enum FooEnum {}
 
+// @matches 'foo/union.FooUnion.html' '//h1' 'Union foo::FooUnion'
+pub union FooUnion {
+    x: u8,
+}
+
 // @matches 'foo/type.FooType.html' '//h1' 'Type Definition foo::FooType'
 pub type FooType = FooStruct;
+
+// @matches 'foo/foreigntype.FooFType.html' '//h1' 'Foreign Type foo::FooFType'
+extern {
+    pub type FooFType;
+}
 
 // @matches 'foo/macro.foo_macro.html' '//h1' 'Macro foo::foo_macro'
 #[macro_export]
