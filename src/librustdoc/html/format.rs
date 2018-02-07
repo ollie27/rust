@@ -349,10 +349,11 @@ impl fmt::Display for clean::PathParameters {
                 f.write_str(")")?;
                 if let Some(ref ty) = *output {
                     if f.alternate() {
-                        write!(f, " -> {:#}", ty)?;
+                        write!(f, " -> ")?;
                     } else {
-                        write!(f, " -&gt; {}", ty)?;
+                        write!(f, " -&gt; ")?;
                     }
+                    fmt_type_with_parens_if_needed(ty, f, false)?;
                 }
             }
         }
@@ -553,16 +554,27 @@ fn fmt_type(t: &clean::Type, f: &mut fmt::Formatter, use_absolute: bool) -> fmt:
         clean::Infer => write!(f, "_"),
         clean::Primitive(prim) => primitive_link(f, prim, prim.as_str()),
         clean::BareFunction(ref decl) => {
-            if f.alternate() {
-                write!(f, "{}{:#}fn{:#}{:#}",
-                       UnsafetySpace(decl.unsafety),
-                       AbiSpace(decl.abi),
-                       CommaSep(&decl.generic_params),
-                       decl.decl)
-            } else {
-                write!(f, "{}{}", UnsafetySpace(decl.unsafety), AbiSpace(decl.abi))?;
-                primitive_link(f, PrimitiveType::Fn, "fn")?;
-                write!(f, "{}{}", CommaSep(&decl.generic_params), decl.decl)
+            fmt::Display::fmt(&UnsafetySpace(decl.unsafety), f)?;
+            fmt::Display::fmt(&AbiSpace(decl.abi), f)?;
+            primitive_link(f, PrimitiveType::Fn, "fn")?;
+            fmt::Display::fmt(&CommaSep(&decl.generic_params), f)?;
+            f.write_str("(")?;
+            fmt::Display::fmt(&decl.decl.inputs, f)?;
+            if decl.decl.variadic {
+                f.write_str(", ...")?;
+            }
+            f.write_str(")")?;
+            match decl.decl.output {
+                clean::Return(clean::Tuple(ref tys)) if tys.is_empty() => Ok(()),
+                clean::Return(ref ty) => {
+                    if f.alternate() {
+                        write!(f, " -> ")?;
+                    } else {
+                        write!(f, " -&gt; ")?;
+                    }
+                    fmt_type_with_parens_if_needed(&ty, f, use_absolute)
+                }
+                clean::DefaultReturn => Ok(()),
             }
         }
         clean::Tuple(ref typs) => {
@@ -606,7 +618,7 @@ fn fmt_type(t: &clean::Type, f: &mut fmt::Formatter, use_absolute: bool) -> fmt:
                 _ => {
                     primitive_link(f, clean::PrimitiveType::RawPointer,
                                    &format!("*{}", RawMutableSpace(m)))?;
-                    fmt::Display::fmt(t, f)
+                    fmt_type_with_parens_if_needed(t, f, use_absolute)
                 }
             }
         }
@@ -645,11 +657,6 @@ fn fmt_type(t: &clean::Type, f: &mut fmt::Formatter, use_absolute: bool) -> fmt:
                         }
                     }
                 }
-                clean::ResolvedPath { typarams: Some(ref v), .. } if !v.is_empty() => {
-                    write!(f, "{}{}{}(", amp, lt, m)?;
-                    fmt_type(&ty, f, use_absolute)?;
-                    write!(f, ")")
-                }
                 clean::Generic(..) => {
                     primitive_link(f, PrimitiveType::Reference,
                                    &format!("{}{}{}", amp, lt, m))?;
@@ -657,7 +664,7 @@ fn fmt_type(t: &clean::Type, f: &mut fmt::Formatter, use_absolute: bool) -> fmt:
                 }
                 _ => {
                     write!(f, "{}{}{}", amp, lt, m)?;
-                    fmt_type(&ty, f, use_absolute)
+                    fmt_type_with_parens_if_needed(&ty, f, use_absolute)
                 }
             }
         }
@@ -741,6 +748,22 @@ impl fmt::Display for clean::Type {
     }
 }
 
+fn fmt_type_with_parens_if_needed(t: &clean::Type, f: &mut fmt::Formatter, use_absolute: bool) -> fmt::Result {
+    let needs_parens = match *t {
+        clean::ResolvedPath { typarams: Some(ref v), .. } if !v.is_empty() => true,
+        clean::ImplTrait(ref bounds) if bounds.len() > 1 => true,
+        _ => false,
+    };
+    if needs_parens {
+        write!(f, "(")?;
+    }
+    fmt_type(&t, f, use_absolute)?;
+    if needs_parens {
+        write!(f, ")")?;
+    }
+    Ok(())
+}
+
 fn fmt_impl(i: &clean::Impl,
             f: &mut fmt::Formatter,
             link_trait: bool,
@@ -818,23 +841,23 @@ impl fmt::Display for clean::FunctionRetTy {
     }
 }
 
-impl fmt::Display for clean::FnDecl {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.variadic {
-            if f.alternate() {
-                write!(f, "({args:#}, ...){arrow:#}", args = self.inputs, arrow = self.output)
-            } else {
-                write!(f, "({args}, ...){arrow}", args = self.inputs, arrow = self.output)
-            }
-        } else {
-            if f.alternate() {
-                write!(f, "({args:#}){arrow:#}", args = self.inputs, arrow = self.output)
-            } else {
-                write!(f, "({args}){arrow}", args = self.inputs, arrow = self.output)
-            }
-        }
-    }
-}
+// impl fmt::Display for clean::FnDecl {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         if self.variadic {
+//             if f.alternate() {
+//                 write!(f, "({args:#}, ...){arrow:#}", args = self.inputs, arrow = self.output)
+//             } else {
+//                 write!(f, "({args}, ...){arrow}", args = self.inputs, arrow = self.output)
+//             }
+//         } else {
+//             if f.alternate() {
+//                 write!(f, "({args:#}){arrow:#}", args = self.inputs, arrow = self.output)
+//             } else {
+//                 write!(f, "({args}){arrow}", args = self.inputs, arrow = self.output)
+//             }
+//         }
+//     }
+// }
 
 impl<'a> fmt::Display for Method<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
