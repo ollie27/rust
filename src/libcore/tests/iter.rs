@@ -1323,6 +1323,23 @@ fn test_range() {
 }
 
 #[test]
+fn test_range_inclusive_size_hint() {
+    assert_eq!((1..=0).size_hint(), (0, Some(0)));
+    assert_eq!((54321..=-12345).size_hint(), (0, Some(0)));
+
+    assert_eq!((0..=0).size_hint(), (1, Some(1)));
+    assert_eq!((u8::max_value()..=u8::max_value()).size_hint(), (1, Some(1)));
+
+    assert_eq!((-128i8..=127).size_hint(), (256, Some(256)));
+    assert_eq!((0u8..=255).size_hint(), (256, Some(256)));
+    assert_eq!((i128::min_value()..=i128::max_value()).size_hint(), (usize::max_value(), None));
+    assert_eq!((0..=((usize::max_value() as u128) - 1)).size_hint(), (usize::max_value(), Some(usize::max_value())));
+    assert_eq!((0..=(usize::max_value() as u128)).size_hint(), (usize::max_value(), None));
+    assert_eq!((0..=(usize::max_value() - 1)).size_hint(), (usize::max_value(), Some(usize::max_value())));
+    assert_eq!((0..=usize::max_value()).size_hint(), (usize::max_value(), None));
+}
+
+#[test]
 fn test_range_inclusive_exhaustion() {
     let mut r = 10..=10;
     assert_eq!(r.next(), Some(10));
