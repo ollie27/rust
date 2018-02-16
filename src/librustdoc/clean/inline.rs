@@ -25,7 +25,7 @@ use rustc::util::nodemap::FxHashSet;
 
 use core::{DocContext, DocAccessLevels};
 use doctree;
-use clean::{self, GetDefId};
+use clean::{self, GetDefId, get_stability, get_deprecation};
 
 use super::Clean;
 
@@ -494,7 +494,14 @@ fn separate_supertrait_bounds(mut g: clean::Generics)
 }
 
 pub fn record_extern_trait(cx: &DocContext, did: DefId) {
-    cx.external_traits.borrow_mut().entry(did).or_insert_with(|| {
-        build_external_trait(cx, did)
+    cx.external_traits.borrow_mut().entry(did).or_insert_with(|| clean::Item {
+        name: Some(cx.tcx.item_name(did).to_string()),
+        attrs: load_attrs(cx, did),
+        source: clean::Span::empty(),
+        def_id: did,
+        visibility: Some(clean::Public),
+        stability: get_stability(cx, did),
+        deprecation: get_deprecation(cx, did),
+        inner: clean::TraitItem(build_external_trait(cx, did)),
     });
 }

@@ -58,7 +58,7 @@ pub struct DocContext<'a, 'tcx: 'a, 'rcx: 'a> {
     /// Later on moved into `html::render::CACHE_KEY`
     pub renderinfo: RefCell<RenderInfo>,
     /// Later on moved through `clean::Crate` into `html::render::CACHE_KEY`
-    pub external_traits: RefCell<FxHashMap<DefId, clean::Trait>>,
+    pub external_traits: RefCell<FxHashMap<DefId, clean::Item>>,
     /// Which markdown renderer to use when extracting links.
     pub render_type: RenderType,
 
