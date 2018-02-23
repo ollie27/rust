@@ -72,6 +72,7 @@ use html::format::{VisSpace, Method, UnsafetySpace, MutableSpace};
 use html::format::fmt_impl_for_trait_page;
 use html::item_type::ItemType;
 use html::markdown::{self, Markdown, MarkdownHtml, MarkdownSummaryLine};
+use html::markdown::{MarkdownSummaryLineNoLinks, MarkdownPlainSummaryLine};
 use html::{highlight, layout};
 
 /// A pair of name and its optional document.
@@ -653,7 +654,7 @@ fn build_index(krate: &clean::Crate, cache: &mut Cache) -> String {
                 ty: item.type_(),
                 name: item.name.clone().unwrap(),
                 path: fqp[..fqp.len() - 1].join("::"),
-                desc: plain_summary_line(item.doc_value()),
+                desc: MarkdownSummaryLineNoLinks(item.doc_value().unwrap_or("".into()), None).to_string(),
                 parent: Some(did),
                 parent_idx: None,
                 search_type: get_index_search_type(&item),
@@ -690,12 +691,13 @@ fn build_index(krate: &clean::Crate, cache: &mut Cache) -> String {
         crate_items.push(item.to_json());
     }
 
-    let crate_doc = krate.module.as_ref().map(|module| {
-        plain_summary_line(module.doc_value())
-    }).unwrap_or(String::new());
+    let crate_doc = krate.module.as_ref().and_then(|module| module.doc_value()).unwrap_or("");
+    let crate_doc_plain = MarkdownPlainSummaryLine(crate_doc).to_string();
+    let crate_doc_html = MarkdownSummaryLineNoLinks(crate_doc, None).to_string();
 
     let mut crate_data = BTreeMap::new();
-    crate_data.insert("doc".to_owned(), Json::String(crate_doc));
+    crate_data.insert("docPlain".to_owned(), Json::String(crate_doc_plain));
+    crate_data.insert("docHtml".to_owned(), Json::String(crate_doc_html));
     crate_data.insert("items".to_owned(), Json::Array(crate_items));
     crate_data.insert("paths".to_owned(), Json::Array(crate_paths));
 
@@ -1171,7 +1173,7 @@ impl DocFolder for Cache {
                             ty: item.type_(),
                             name: s.to_string(),
                             path: path.join("::").to_string(),
-                            desc: plain_summary_line(item.doc_value()),
+                            desc: MarkdownSummaryLineNoLinks(item.doc_value().unwrap_or(""), None).to_string(),
                             parent,
                             parent_idx: None,
                             search_type: get_index_search_type(&item),
@@ -1559,8 +1561,9 @@ impl Context {
                 Some(ref s) => s.to_string(),
             };
             let short = short.to_string();
+            let title = MarkdownPlainSummaryLine(item.doc_value().unwrap_or("")).to_string();
             map.entry(short).or_insert(vec![])
-                .push((myname, Some(plain_summary_line(item.doc_value()))));
+                .push((myname, Some(title)));
         }
 
         if self.shared.sort_modules_alphabetically {
@@ -1743,25 +1746,6 @@ fn full_path(cx: &Context, item: &clean::Item) -> String {
     s
 }
 
-fn shorter<'a>(s: Option<&'a str>) -> String {
-    match s {
-        Some(s) => s.lines()
-            .skip_while(|s| s.chars().all(|c| c.is_whitespace()))
-            .take_while(|line|{
-            (*line).chars().any(|chr|{
-                !chr.is_whitespace()
-            })
-        }).collect::<Vec<_>>().join("\n"),
-        None => "".to_string()
-    }
-}
-
-#[inline]
-fn plain_summary_line(s: Option<&str>) -> String {
-    let line = shorter(s).replace("\n", " ");
-    markdown::plain_summary_line(&line[..])
-}
-
 fn document(w: &mut fmt::Formatter, cx: &Context, item: &clean::Item) -> fmt::Result {
     if let Some(ref name) = item.name {
         info!("Documenting {}", name);
@@ -1772,25 +1756,13 @@ fn document(w: &mut fmt::Formatter, cx: &Context, item: &clean::Item) -> fmt::Re
     Ok(())
 }
 
-/// Render md_text as markdown.
-fn render_markdown(w: &mut fmt::Formatter,
-                   md_text: &str,
-                   links: Vec<(String, String)>,
-                   prefix: &str,)
-                   -> fmt::Result {
-    write!(w, "<div class='docblock'>{}{}</div>", prefix, Markdown(md_text, &links))
-}
-
 fn document_short(w: &mut fmt::Formatter, item: &clean::Item, link: AssocItemLink,
                   prefix: &str) -> fmt::Result {
     if let Some(s) = item.doc_value() {
-        let markdown = if s.contains('\n') {
-            format!("{} [Read more]({})",
-                    &plain_summary_line(Some(s)), naive_assoc_href(item, link))
-        } else {
-            format!("{}", &plain_summary_line(Some(s)))
-        };
-        render_markdown(w, &markdown, item.links(), prefix)?;
+        let read_more_url = naive_assoc_href(item, link);
+        write!(w, "<div class='docblock'>{}<p>{}</p>\n</div>", // FIXME: remove `\n`
+               prefix,
+               MarkdownSummaryLineNoLinks(s, Some(read_more_url)).to_string().replace("\n"," "))?; // FIXME: remove `.to_string().replace("\n"," ")`
     } else if !prefix.is_empty() {
         write!(w, "<div class='docblock'>{}</div>", prefix)?;
     }
@@ -1816,7 +1788,7 @@ fn document_full(w: &mut fmt::Formatter, item: &clean::Item,
                  cx: &Context, prefix: &str) -> fmt::Result {
     if let Some(s) = cx.shared.maybe_collapsed_doc_value(item) {
         debug!("Doc block: =====\n{}\n=====", s);
-        render_markdown(w, &*s, item.links(), prefix)?;
+        write!(w, "<div class='docblock'>{}{}</div>", prefix, Markdown(&s, &item.links()))?;
     } else if !prefix.is_empty() {
         write!(w, "<div class='docblock'>{}</div>", prefix)?;
     }
@@ -2031,7 +2003,7 @@ fn item_module(w: &mut fmt::Formatter, cx: &Context,
                            <td><a class=\"{class}\" href=\"{href}\"
                                   title='{title_type} {title}'>{name}</a>{unsafety_flag}</td>
                            <td class='docblock-short'>
-                               {stab_docs} {docs}
+                               {stab_docs} <p>{docs}</p>
                            </td>
                        </tr>",
                        name = *myitem.name.as_ref().unwrap(),
