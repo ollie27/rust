@@ -1211,7 +1211,7 @@
                               displayPath + '<span class="' + type + '">' +
                               name + '</span></a></td><td>' +
                               '<a href="' + href + '">' +
-                              '<span class="desc">' + escape(item.desc) +
+                              '<span class="desc">' + item.desc +
                               '&nbsp;</span></a></td></tr>';
                 });
                 output += '</table>';
@@ -1315,7 +1315,7 @@
                     ty: 1, // == ExternCrate
                     name: crate,
                     path: "",
-                    desc: rawSearchIndex[crate].doc,
+                    desc: rawSearchIndex[crate].docHtml,
                     type: null,
                 });
 
@@ -1478,7 +1478,7 @@
                 }
                 var link = document.createElement('a');
                 link.href = '../' + crates[i] + '/index.html';
-                link.title = rawSearchIndex[crates[i]].doc;
+                link.title = rawSearchIndex[crates[i]].docPlain;
                 link.className = klass;
                 link.textContent = crates[i];
 
