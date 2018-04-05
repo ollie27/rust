@@ -290,7 +290,7 @@ pub struct Cache {
     /// Implementations of a crate should inherit the documentation of the
     /// parent trait if no extra documentation is specified, and default methods
     /// should show up in documentation about trait implementations.
-    pub traits: FxHashMap<DefId, clean::Trait>,
+    pub traits: FxHashMap<DefId, clean::Item>,
 
     /// When rendering traits, it's often useful to be able to list all
     /// implementors of the trait, and this mapping is exactly, that: a mapping
@@ -1144,8 +1144,8 @@ impl DocFolder for Cache {
 
         // Propagate a trait method's documentation to all implementors of the
         // trait.
-        if let clean::TraitItem(ref t) = item.inner {
-            self.traits.entry(item.def_id).or_insert_with(|| t.clone());
+        if let clean::TraitItem(..) = item.inner {
+            self.traits.entry(item.def_id).or_insert_with(|| item.clone());
         }
 
         // Collect all the implementors of traits.
@@ -1726,8 +1726,10 @@ impl<'a> fmt::Display for Item<'a> {
         write!(fmt, "</span>")?; // in-band
         write!(fmt, "<span class='out-of-band'>")?;
         if let Some(version) = self.item.stable_since() {
-            write!(fmt, "<span class='since' title='Stable since Rust version {0}'>{0}</span>",
-                   version)?;
+            if !version.is_empty() {
+                write!(fmt, "<span class='since' title='Stable since Rust version {0}'>{0}</span>",
+                    version)?;
+            }
         }
         write!(fmt,
                r##"<span id='render-detail'>
@@ -2623,8 +2625,13 @@ fn assoc_type<W: fmt::Write>(w: &mut W, it: &clean::Item,
 fn render_stability_since_raw<'a>(w: &mut fmt::Formatter,
                                   ver: Option<&'a str>,
                                   containing_ver: Option<&'a str>) -> fmt::Result {
-    if let Some(v) = ver {
-        if containing_ver != ver && v.len() > 0 {
+    fn is_newer_version(ver: &str, containing_ver: &str) -> bool {
+        containing_ver.split(".").map(|n| n.parse::<u32>().unwrap_or(0))
+            .lt(ver.split(".").map(|n| n.parse::<u32>().unwrap_or(0)))
+    }
+
+    if let (Some(v), Some(c_v)) = (ver, containing_ver) {
+        if !v.is_empty() && !c_v.is_empty() && is_newer_version(v, c_v) {
             write!(w, "<div class='since' title='Stable since Rust version {0}'>{0}</div>",
                    v)?
         }
@@ -3282,7 +3289,13 @@ fn spotlight_decl(decl: &clean::FnDecl) -> Result<String, fmt::Error> {
         if let Some(impls) = c.impls.get(&did) {
             for i in impls {
                 let impl_ = i.inner_impl();
-                if impl_.trait_.def_id().map_or(false, |d| c.traits[&d].is_spotlight) {
+                if impl_.trait_.def_id().map_or(false, |d| {
+                    if let clean::TraitItem(ref t) = c.traits[&d].inner {
+                        t.is_spotlight
+                    } else {
+                        panic!("none trait found in Cache::traits");
+                    }
+                }) {
                     if out.is_empty() {
                         out.push_str(
                             &format!("<h3 class=\"important\">Important traits for {}</h3>\
@@ -3322,29 +3335,111 @@ fn spotlight_decl(decl: &clean::FnDecl) -> Result<String, fmt::Error> {
 fn render_impl(w: &mut fmt::Formatter, cx: &Context, i: &Impl, link: AssocItemLink,
                render_mode: RenderMode, outer_version: Option<&str>,
                show_def_docs: bool) -> fmt::Result {
+    let traits = &cache().traits;
+    let trait_item = i.trait_did().map(|did| &traits[&did]);
+    let trait_ = trait_item.map(|item| if let clean::TraitItem(ref t) = item.inner {
+        t
+    } else {
+        panic!("none trait found in Cache::traits");
+    });
+    let inner_impl = i.inner_impl();
+
     if render_mode == RenderMode::Normal {
-        let id = derive_id(match i.inner_impl().trait_ {
+        let id = derive_id(match inner_impl.trait_ {
             Some(ref t) => format!("impl-{}", small_url_encode(&format!("{:#}", t))),
             None => "impl".to_string(),
         });
         write!(w, "<h3 id='{}' class='impl'><span class='in-band'><table class='table-display'>\
                    <tbody><tr><td><code>{}</code>",
-               id, i.inner_impl())?;
+               id, inner_impl)?;
         write!(w, "<a href='#{}' class='anchor'></a>", id)?;
         write!(w, "</span></td><td><span class='out-of-band'>")?;
-        let since = i.impl_item.stability.as_ref().map(|s| &s.since[..]);
+        let since = i.impl_item.stable_since();
         if let Some(l) = (Item { item: &i.impl_item, cx: cx }).src_href() {
             write!(w, "<div class='ghost'></div>")?;
-            render_stability_since_raw(w, since, outer_version)?;
+            if trait_.is_some() {
+                render_stability_since_raw(w, since, outer_version)?;
+            }
             write!(w, "<a class='srclink' href='{}' title='{}'>[src]</a>",
                    l, "goto source code")?;
         } else {
-            render_stability_since_raw(w, since, outer_version)?;
+            if trait_.is_some() {
+                render_stability_since_raw(w, since, outer_version)?;
+            }
+        }
+        // ignore-tidy-linelength
+        if !inner_impl.synthetic {
+            let trait_since = trait_item.and_then(clean::Item::stable_since);
+            fn is_newer_version(ver: &str, containing_ver: &str) -> bool {
+                containing_ver.split(".").map(|n| n.parse::<usize>().unwrap()).lt(ver.split(".").map(|n| n.parse::<usize>().unwrap()))
+            }
+            if let (Some(v), Some(c_v)) = (trait_since, since) {
+                if !v.is_empty() && !c_v.is_empty() && is_newer_version(v, c_v) {
+                    println!("<br>BEFORE TRAIT ({:?}, {:?}): {}", trait_since, since, i.inner_impl());
+                }
+            }
+            if let (Some(v), Some(c_v)) = (outer_version, since) {
+                if !v.is_empty() && !c_v.is_empty() && is_newer_version(v, c_v) {
+                    println!("<br>BEFORE FOR ({:?}, {:?}): {}", outer_version, since, i.inner_impl());
+                }
+            }
+            if let (Some(v), None) = (outer_version, trait_) {
+                for thing in &i.inner_impl().items {
+                    if let Some(item_version) = thing.stable_since() {
+                        if !v.is_empty() && !item_version.is_empty() && is_newer_version(v, item_version) {
+                            println!("<br>BEFORE IMPL ({:?}, {:?}): {}", outer_version, thing.stable_since(), i.inner_impl());
+                        }
+                    }
+                }
+            }
+            match since {
+                None | Some("") => {
+                    if trait_.is_none() {
+                        // if let Some(c_v) = outer_version {
+                        //     if !c_v.is_empty() {
+                        //         println!("<br>STABLE FOR ({:?}, {:?}): {}", outer_version, since, i.inner_impl());
+                        //     }
+                        // }
+                    } else {
+                        if let (Some(c_v), Some(t_v)) = (outer_version, trait_since) {
+                            if !c_v.is_empty() && !t_v.is_empty() {
+                                println!("<br>STABLE TRAIT & FOR ({:?}, {:?}, {:?}): {}", trait_since, outer_version, since, i.inner_impl());
+                            }
+                        }
+                        if since.is_none() {
+                            println!("<br>NO STAB ({:?}): {}", since, i.inner_impl());
+                        }
+                    }
+                }
+                Some(..) => {
+                    if outer_version.is_none() || outer_version == Some("") {
+                        println!("<br>UNSTABLE FOR ({:?}, {:?}): {}", outer_version, since, i.inner_impl());
+                    }
+                    if trait_since.is_none() || trait_since == Some("") {
+                        println!("<br>UNSTABLE TRAIT ({:?}, {:?}): {}", trait_since, since, i.inner_impl());
+                    }
+                }
+            }
         }
         write!(w, "</span></td></tr></tbody></table></h3>")?;
+        if let Some(item) = trait_item {
+            document_stability(w, cx, item)?;
+        }
         if let Some(ref dox) = cx.shared.maybe_collapsed_doc_value(&i.impl_item) {
             write!(w, "<div class='docblock'>{}</div>",
                    Markdown(&*dox, &i.impl_item.links()))?;
+        }
+    }
+
+    fn impl_item_matches_trait_item(impl_item: &clean::Item, trait_item: &clean::Item) -> bool {
+        match (impl_item.type_(), trait_item.type_()) {
+            (ItemType::Method, ItemType::TyMethod) |
+            (ItemType::Method, ItemType::Method) |
+            (ItemType::Typedef, ItemType::AssociatedType) |
+            (ItemType::AssociatedConst, ItemType::AssociatedConst) => {
+                impl_item.name == trait_item.name
+            }
+            _ => false,
         }
     }
 
@@ -3354,6 +3449,19 @@ fn render_impl(w: &mut fmt::Formatter, cx: &Context, i: &Impl, link: AssocItemLi
                      trait_: Option<&clean::Trait>, show_def_docs: bool) -> fmt::Result {
         let item_type = item.type_();
         let name = item.name.as_ref().unwrap();
+
+        let trait_item = if let Some(t) = trait_ {
+            // The trait item may have been stripped so we might not
+            // find any documentation or stability for it.
+            if let Some(it) = t.items.iter().find(|i| impl_item_matches_trait_item(item, i)) {
+                Some(it)
+            } else {
+                // must have been stripped from trait so no need to render it here
+                return Ok(());
+            }
+        } else {
+            None
+        };
 
         let render_method_item: bool = match render_mode {
             RenderMode::Normal => true,
@@ -3376,12 +3484,20 @@ fn render_impl(w: &mut fmt::Formatter, cx: &Context, i: &Impl, link: AssocItemLi
                     if let Some(l) = (Item { cx, item }).src_href() {
                         write!(w, "</span></td><td><span class='out-of-band'>")?;
                         write!(w, "<div class='ghost'></div>")?;
-                        render_stability_since_raw(w, item.stable_since(), outer_version)?;
+                        if let Some(it) = trait_item {
+                            render_stability_since_raw(w, it.stable_since(), outer_version)?;
+                        } else {
+                            render_stability_since_raw(w, item.stable_since(), outer_version)?;
+                        }
                         write!(w, "<a class='srclink' href='{}' title='{}'>[src]</a>",
                                l, "goto source code")?;
                     } else {
                         write!(w, "</td><td>")?;
-                        render_stability_since_raw(w, item.stable_since(), outer_version)?;
+                        if let Some(it) = trait_item {
+                            render_stability_since_raw(w, it.stable_since(), outer_version)?;
+                        } else {
+                            render_stability_since_raw(w, item.stable_since(), outer_version)?;
+                        }
                     }
                     write!(w, "</td></tr></tbody></table></span></h4>")?;
                 }
@@ -3392,7 +3508,13 @@ fn render_impl(w: &mut fmt::Formatter, cx: &Context, i: &Impl, link: AssocItemLi
                 write!(w, "<h4 id='{}' class=\"{}\">", id, item_type)?;
                 write!(w, "<span id='{}' class='invisible'><code>", ns_id)?;
                 assoc_type(w, item, &Vec::new(), Some(&tydef.type_), link.anchor(&id))?;
-                write!(w, "</code></span></h4>\n")?;
+                write!(w, "</code>")?;
+                if let Some(it) = trait_item {
+                    render_stability_since_raw(w, it.stable_since(), outer_version)?;
+                } else {
+                    render_stability_since_raw(w, item.stable_since(), outer_version)?;
+            }
+                write!(w, "</span></h4>\n")?;
             }
             clean::AssociatedConstItem(ref ty, ref default) => {
                 let id = derive_id(format!("{}.{}", item_type, name));
@@ -3400,7 +3522,13 @@ fn render_impl(w: &mut fmt::Formatter, cx: &Context, i: &Impl, link: AssocItemLi
                 write!(w, "<h4 id='{}' class=\"{}\">", id, item_type)?;
                 write!(w, "<span id='{}' class='invisible'><code>", ns_id)?;
                 assoc_const(w, item, ty, default.as_ref(), link.anchor(&id))?;
-                write!(w, "</code></span></h4>\n")?;
+                write!(w, "</code>")?;
+                if let Some(it) = trait_item {
+                    render_stability_since_raw(w, it.stable_since(), outer_version)?;
+                } else {
+                    render_stability_since_raw(w, item.stable_since(), outer_version)?;
+                }
+                write!(w, "</span></h4>\n")?;
             }
             clean::AssociatedTypeItem(ref bounds, ref default) => {
                 let id = derive_id(format!("{}.{}", item_type, name));
@@ -3408,7 +3536,13 @@ fn render_impl(w: &mut fmt::Formatter, cx: &Context, i: &Impl, link: AssocItemLi
                 write!(w, "<h4 id='{}' class=\"{}\">", id, item_type)?;
                 write!(w, "<span id='{}' class='invisible'><code>", ns_id)?;
                 assoc_type(w, item, bounds, default.as_ref(), link.anchor(&id))?;
-                write!(w, "</code></span></h4>\n")?;
+                write!(w, "</code>")?;
+                if let Some(it) = trait_item {
+                    render_stability_since_raw(w, it.stable_since(), outer_version)?;
+                } else {
+                    render_stability_since_raw(w, item.stable_since(), outer_version)?;
+                }
+                write!(w, "</span></h4>\n")?;
             }
             clean::StrippedItem(..) => return Ok(()),
             _ => panic!("can't make docs for trait item with name {:?}", item.name)
@@ -3418,10 +3552,7 @@ fn render_impl(w: &mut fmt::Formatter, cx: &Context, i: &Impl, link: AssocItemLi
             let prefix = render_assoc_const_value(item);
 
             if !is_default_item {
-                if let Some(t) = trait_ {
-                    // The trait item may have been stripped so we might not
-                    // find any documentation or stability for it.
-                    if let Some(it) = t.items.iter().find(|i| i.name == item.name) {
+                if let Some(it) = trait_item {
                         // We need the stability of the item from the trait
                         // because impls can't have a stability.
                         document_stability(w, cx, it)?;
@@ -3432,7 +3563,6 @@ fn render_impl(w: &mut fmt::Formatter, cx: &Context, i: &Impl, link: AssocItemLi
                             // provide short documentation from the trait.
                             document_short(w, it, link, &prefix)?;
                         }
-                    }
                 } else {
                     document_stability(w, cx, item)?;
                     if show_def_docs {
@@ -3449,45 +3579,36 @@ fn render_impl(w: &mut fmt::Formatter, cx: &Context, i: &Impl, link: AssocItemLi
         Ok(())
     }
 
-    let traits = &cache().traits;
-    let trait_ = i.trait_did().map(|did| &traits[&did]);
-
     if !show_def_docs {
         write!(w, "<span class='docblock autohide'>")?;
     }
 
     write!(w, "<div class='impl-items'>")?;
-    for trait_item in &i.inner_impl().items {
+    for trait_item in &inner_impl.items {
+        let outer_version = if trait_.is_some() {
+            i.impl_item.stable_since()
+        } else {
+            outer_version
+        };
         doc_impl_item(w, cx, trait_item, link, render_mode,
                       false, outer_version, trait_, show_def_docs)?;
-    }
-
-    fn render_default_items(w: &mut fmt::Formatter,
-                            cx: &Context,
-                            t: &clean::Trait,
-                            i: &clean::Impl,
-                            render_mode: RenderMode,
-                            outer_version: Option<&str>,
-                            show_def_docs: bool) -> fmt::Result {
-        for trait_item in &t.items {
-            let n = trait_item.name.clone();
-            if i.items.iter().find(|m| m.name == n).is_some() {
-                continue;
-            }
-            let did = i.trait_.as_ref().unwrap().def_id().unwrap();
-            let assoc_link = AssocItemLink::GotoSource(did, &i.provided_trait_methods);
-
-            doc_impl_item(w, cx, trait_item, assoc_link, render_mode, true,
-                          outer_version, None, show_def_docs)?;
-        }
-        Ok(())
     }
 
     // If we've implemented a trait, then also emit documentation for all
     // default items which weren't overridden in the implementation block.
     if let Some(t) = trait_ {
-        render_default_items(w, cx, t, &i.inner_impl(),
-                             render_mode, outer_version, show_def_docs)?;
+        for trait_item in &t.items {
+            if trait_item.type_() == ItemType::TyMethod ||
+                    inner_impl.items.iter()
+                    .find(|m| impl_item_matches_trait_item(m, trait_item)).is_some() {
+                continue;
+            }
+            let did = i.trait_did().unwrap();
+            let assoc_link = AssocItemLink::GotoSource(did, &inner_impl.provided_trait_methods);
+
+            doc_impl_item(w, cx, trait_item, assoc_link, render_mode, true,
+                          i.impl_item.stable_since(), None, show_def_docs)?;
+    }
     }
     write!(w, "</div>")?;
 

@@ -141,7 +141,7 @@ pub struct Crate {
     pub access_levels: Arc<AccessLevels<DefId>>,
     // These are later on moved into `CACHEKEY`, leaving the map empty.
     // Only here so that they can be filtered through the rustdoc passes.
-    pub external_traits: FxHashMap<DefId, Trait>,
+    pub external_traits: FxHashMap<DefId, Item>,
     pub masked_crates: FxHashSet<CrateNum>,
 }
 

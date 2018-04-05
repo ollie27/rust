@@ -63,7 +63,7 @@ pub struct DocContext<'a, 'tcx: 'a, 'rcx: 'a> {
     /// Later on moved into `html::render::CACHE_KEY`
     pub renderinfo: RefCell<RenderInfo>,
     /// Later on moved through `clean::Crate` into `html::render::CACHE_KEY`
-    pub external_traits: RefCell<FxHashMap<DefId, clean::Trait>>,
+    pub external_traits: RefCell<FxHashMap<DefId, clean::Item>>,
     /// Used while populating `external_traits` to ensure we don't process the same trait twice at
     /// the same time.
     pub active_extern_traits: RefCell<Vec<DefId>>,

@@ -25,7 +25,7 @@ use rustc::util::nodemap::FxHashSet;
 
 use core::{DocContext, DocAccessLevels};
 use doctree;
-use clean::{self, GetDefId, get_auto_traits_with_def_id};
+use clean::{self, GetDefId, get_auto_traits_with_def_id, get_stability, get_deprecation};
 
 use super::Clean;
 
@@ -520,7 +520,16 @@ pub fn record_extern_trait(cx: &DocContext, did: DefId) {
 
     cx.active_extern_traits.borrow_mut().push(did);
 
-    let trait_ = build_external_trait(cx, did);
+    let trait_ = clean::Item {
+        name: Some(cx.tcx.item_name(did).to_string()),
+        attrs: load_attrs(cx, did),
+        source: clean::Span::empty(),
+        def_id: did,
+        visibility: Some(clean::Public),
+        stability: get_stability(cx, did),
+        deprecation: get_deprecation(cx, did),
+        inner: clean::TraitItem(build_external_trait(cx, did)),
+    };
 
     cx.external_traits.borrow_mut().insert(did, trait_);
     cx.active_extern_traits.borrow_mut().remove_item(&did);
