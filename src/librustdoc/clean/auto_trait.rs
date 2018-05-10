@@ -11,6 +11,7 @@
 use rustc::ty::TypeFoldable;
 use std::fmt::Debug;
 
+use core::DocAccessLevels;
 use super::*;
 
 pub struct AutoTraitFinder<'a, 'tcx: 'a, 'rcx: 'a> {
@@ -53,12 +54,7 @@ impl<'a, 'tcx, 'rcx> AutoTraitFinder<'a, 'tcx, 'rcx> {
         def_ctor: fn(DefId) -> Def,
         name: Option<String>,
     ) -> Vec<Item> {
-        if self.cx
-            .tcx
-            .get_attrs(def_id)
-            .lists("doc")
-            .has_word("hidden")
-        {
+        if !def_id.is_local() && !self.cx.access_levels.borrow().is_doc_reachable(def_id) {
             debug!(
                 "get_auto_trait_impls(def_id={:?}, def_ctor={:?}): item has doc('hidden'), \
                  aborting",
