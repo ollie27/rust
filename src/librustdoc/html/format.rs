@@ -611,7 +611,7 @@ fn fmt_type(t: &clean::Type, f: &mut fmt::Formatter, use_absolute: bool) -> fmt:
                 _ => {
                     primitive_link(f, clean::PrimitiveType::RawPointer,
                                    &format!("*{}", RawMutableSpace(m)))?;
-                    fmt::Display::fmt(t, f)
+                    fmt_type_with_parens_if_required(t, f, use_absolute)
                 }
             }
         }
@@ -650,11 +650,6 @@ fn fmt_type(t: &clean::Type, f: &mut fmt::Formatter, use_absolute: bool) -> fmt:
                         }
                     }
                 }
-                clean::ResolvedPath { typarams: Some(ref v), .. } if !v.is_empty() => {
-                    write!(f, "{}{}{}(", amp, lt, m)?;
-                    fmt_type(&ty, f, use_absolute)?;
-                    write!(f, ")")
-                }
                 clean::Generic(..) => {
                     primitive_link(f, PrimitiveType::Reference,
                                    &format!("{}{}{}", amp, lt, m))?;
@@ -662,7 +657,7 @@ fn fmt_type(t: &clean::Type, f: &mut fmt::Formatter, use_absolute: bool) -> fmt:
                 }
                 _ => {
                     write!(f, "{}{}{}", amp, lt, m)?;
-                    fmt_type(&ty, f, use_absolute)
+                    fmt_type_with_parens_if_required(ty, f, use_absolute)
                 }
             }
         }
@@ -727,6 +722,26 @@ fn fmt_type(t: &clean::Type, f: &mut fmt::Formatter, use_absolute: bool) -> fmt:
             panic!("should have been cleaned")
         }
     }
+}
+
+fn fmt_type_with_parens_if_required(
+    t: &clean::Type,
+    f: &mut fmt::Formatter,
+    use_absolute: bool,
+) -> fmt::Result {
+    let needs_parens = match *t {
+        clean::ResolvedPath { typarams: Some(ref typarams), .. } if !typarams.is_empty() => true,
+        clean::ImplTrait(..) => true,
+        _ => false,
+    };
+    if needs_parens {
+        f.write_str("(")?;
+    }
+    fmt_type(t, f, use_absolute)?;
+    if needs_parens {
+        f.write_str(")")?;
+    }
+    Ok(())
 }
 
 impl fmt::Display for clean::Type {
