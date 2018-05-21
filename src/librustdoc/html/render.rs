@@ -908,33 +908,32 @@ themePicker.onblur = handleThemeButtonsBlur;
         Ok(ret)
     }
 
-    fn show_item(item: &IndexItem, krate: &str) -> String {
-        format!("{{'crate':'{}','ty':{},'name':'{}','desc':'{}','p':'{}'{}}}",
-                krate, item.ty as usize, item.name, item.desc.replace("'", "\\'"), item.path,
-                if let Some(p) = item.parent_idx {
-                    format!(",'parent':{}", p)
-                } else {
-                    String::new()
-                })
+    fn show_item(item: &IndexItem, krate: &str) -> Json { // TODO: turn into ToJson impl
+        let mut obj = BTreeMap::new();
+        obj.insert("crate".to_string(), krate.to_json()); // TODO: is this needed?
+        obj.insert("ty".to_string(), (item.ty as usize).to_json());
+        obj.insert("name".to_string(), item.name.to_json());
+        obj.insert("desc".to_string(), item.desc.to_json());
+        obj.insert("p".to_string(), item.path.to_json());
+        if let Some(p) = item.parent_idx {
+            obj.insert("parent".to_string(), p.to_json()); // TODO: is this needed?
+        }
+        Json::Object(obj)
     }
 
     let dst = cx.dst.join("aliases.js");
     {
         let mut all_aliases = try_err!(collect(&dst, &krate.name, "ALIASES"), &dst);
         let mut w = try_err!(File::create(&dst), &dst);
-        let mut output = String::with_capacity(100);
+        let mut current_crate_aliases = BTreeMap::new();
         for (alias, items) in &cache.aliases {
             if items.is_empty() {
-                continue
+                continue;
             }
-            output.push_str(&format!("\"{}\":[{}],",
-                                     alias,
-                                     items.iter()
-                                          .map(|v| show_item(v, &krate.name))
-                                          .collect::<Vec<_>>()
-                                          .join(",")));
+            let new_items = items.iter().map(|v| show_item(v, &krate.name)).collect::<Vec<_>>();
+            current_crate_aliases.insert(alias.to_string(), new_items.to_json());
         }
-        all_aliases.push(format!("ALIASES['{}'] = {{{}}};", krate.name, output));
+        all_aliases.push(format!("ALIASES['{}'] = {};", krate.name, Json::Object(current_crate_aliases)));
         all_aliases.sort();
         try_err!(writeln!(&mut w, "var ALIASES = {{}};"), &dst);
         for aliases in &all_aliases {
