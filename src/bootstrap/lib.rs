@@ -775,11 +775,12 @@ impl Build {
 
     /// Returns if this target should statically link the C runtime, if specified
     fn crt_static(&self, target: Interned<String>) -> Option<bool> {
-        if target.contains("pc-windows-msvc") {
+        if let Some(b) = self.config.target_config.get(&target).and_then(|t| t.crt_static) {
+            Some(b)
+        } else if target.contains("pc-windows-msvc") {
             Some(true)
         } else {
-            self.config.target_config.get(&target)
-                .and_then(|t| t.crt_static)
+            None
         }
     }
 

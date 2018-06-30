@@ -185,7 +185,7 @@ impl Step for Llvm {
             }
         }
 
-        if target.contains("msvc") {
+        if target.contains("msvc") && builder.crt_static(target) == Some(true) {
             cfg.define("LLVM_USE_CRT_DEBUG", "MT");
             cfg.define("LLVM_USE_CRT_RELEASE", "MT");
             cfg.define("LLVM_USE_CRT_RELWITHDEBINFO", "MT");
@@ -412,6 +412,14 @@ impl Step for Lld {
         t!(fs::create_dir_all(&out_dir));
 
         let mut cfg = cmake::Config::new(builder.src.join("src/tools/lld"));
+
+        if target.contains("msvc") && builder.crt_static(target) == Some(true) {
+            cfg.define("LLVM_USE_CRT_DEBUG", "MT");
+            cfg.define("LLVM_USE_CRT_RELEASE", "MT");
+            cfg.define("LLVM_USE_CRT_RELWITHDEBINFO", "MT");
+            cfg.static_crt(true);
+        }
+
         configure_cmake(builder, target, &mut cfg, true);
 
         // This is an awful, awful hack. Discovered when we migrated to using

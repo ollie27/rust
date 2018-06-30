@@ -82,9 +82,6 @@ pub fn find(build: &mut Build) {
         match build.crt_static(target) {
             Some(a) => { cfg.static_crt(a); }
             None => {
-                if target.contains("msvc") {
-                    cfg.static_crt(true);
-                }
                 if target.contains("musl") {
                     cfg.static_flag(true);
                 }
