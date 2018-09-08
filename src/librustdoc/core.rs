@@ -18,7 +18,7 @@ use rustc::middle::cstore::CrateStore;
 use rustc::middle::privacy::AccessLevels;
 use rustc::ty::{self, TyCtxt, AllArenas};
 use rustc::hir::map as hir_map;
-use rustc::lint::{self, LintPass};
+use rustc::lint;
 use rustc::session::config::ErrorOutputType;
 use rustc::util::nodemap::{FxHashMap, FxHashSet};
 use rustc_resolve as resolve;
@@ -333,31 +333,14 @@ pub fn run_core(search_paths: SearchPaths,
         _ => None
     };
 
-    let intra_link_resolution_failure_name = lint::builtin::INTRA_DOC_LINK_RESOLUTION_FAILURE.name;
-    let warnings_lint_name = lint::builtin::WARNINGS.name;
-    let missing_docs = rustc_lint::builtin::MISSING_DOCS.name;
+    let mut whitelisted_lints = FxHashSet();
+    whitelisted_lints.insert(lint::builtin::WARNINGS.name.to_string());
+    whitelisted_lints.insert(lint::builtin::INTRA_DOC_LINK_RESOLUTION_FAILURE.name.to_string());
+    whitelisted_lints.insert(rustc_lint::builtin::MISSING_DOCS.name.to_string());
 
     // In addition to those specific lints, we also need to whitelist those given through
     // command line, otherwise they'll get ignored and we don't want that.
-    let mut whitelisted_lints = vec![warnings_lint_name.to_owned(),
-                                     intra_link_resolution_failure_name.to_owned(),
-                                     missing_docs.to_owned()];
-
     whitelisted_lints.extend(cmd_lints.iter().map(|(lint, _)| lint).cloned());
-
-    let lints = lint::builtin::HardwiredLints.get_lints()
-                    .into_iter()
-                    .chain(rustc_lint::SoftLints.get_lints().into_iter())
-                    .filter_map(|lint| {
-                        if lint.name == warnings_lint_name ||
-                           lint.name == intra_link_resolution_failure_name {
-                            None
-                        } else {
-                            Some((lint.name_lower(), lint::Allow))
-                        }
-                    })
-                    .chain(cmd_lints.into_iter())
-                    .collect::<Vec<_>>();
 
     let host_triple = TargetTriple::from_triple(config::host_triple());
     // plays with error output here!
@@ -366,11 +349,11 @@ pub fn run_core(search_paths: SearchPaths,
         search_paths,
         crate_types: vec![config::CrateType::Rlib],
         lint_opts: if !allow_warnings {
-            lints
+            cmd_lints
         } else {
             vec![]
         },
-        lint_cap: Some(lint_cap.unwrap_or_else(|| lint::Forbid)),
+        lint_cap,
         cg,
         externs,
         target_triple: triple.unwrap_or(host_triple),
@@ -394,22 +377,7 @@ pub fn run_core(search_paths: SearchPaths,
             sessopts, cpath, diagnostic_handler, source_map,
         );
 
-        lint::builtin::HardwiredLints.get_lints()
-                                     .into_iter()
-                                     .chain(rustc_lint::SoftLints.get_lints().into_iter())
-                                     .filter_map(|lint| {
-                                         // We don't want to whitelist *all* lints so let's
-                                         // ignore those ones.
-                                         if whitelisted_lints.iter().any(|l| &lint.name == l) {
-                                             None
-                                         } else {
-                                             Some(lint)
-                                         }
-                                     })
-                                     .for_each(|l| {
-                                         sess.driver_lint_caps.insert(lint::LintId::of(l),
-                                                                      lint::Allow);
-                                     });
+        sess.driver_lint_whitelist = Some(whitelisted_lints);
 
         let codegen_backend = rustc_driver::get_codegen_backend(&sess);
         let cstore = Rc::new(CStore::new(codegen_backend.metadata_loader()));

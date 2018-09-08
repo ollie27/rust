@@ -72,9 +72,6 @@ use builtin::*;
 use types::*;
 use unused::*;
 
-/// Useful for other parts of the compiler.
-pub use builtin::SoftLints;
-
 /// Tell the `LintStore` about all the built-in lints (the ones
 /// defined in this crate and the ones defined in
 /// `rustc::lint::builtin`).

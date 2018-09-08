@@ -1,0 +1,23 @@
+warning: missing documentation for crate
+  --> $DIR/missing-docs-capped.rs:15:1
+   |
+15 | / #![deny(missing_docs)]
+16 | |
+17 | | pub struct Foo;
+18 | |
+19 | | #[allow(missing_docs)]
+20 | | pub struct Bar;
+   | |_______________^
+   |
+note: lint level defined here
+  --> $DIR/missing-docs-capped.rs:15:9
+   |
+15 | #![deny(missing_docs)]
+   |         ^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> $DIR/missing-docs-capped.rs:17:1
+   |
+17 | pub struct Foo;
+   | ^^^^^^^^^^^^^^^
+

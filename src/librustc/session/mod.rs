@@ -160,7 +160,7 @@ pub struct Session {
     pub has_global_allocator: Once<bool>,
 
     /// Cap lint level specified by a driver specifically.
-    pub driver_lint_caps: FxHashMap<lint::LintId, lint::Level>,
+    pub driver_lint_whitelist: Option<FxHashSet<String>>,
 }
 
 pub struct PerfStats {
@@ -1160,7 +1160,7 @@ pub fn build_session_(
             (*GLOBAL_JOBSERVER).clone()
         },
         has_global_allocator: Once::new(),
-        driver_lint_caps: FxHashMap(),
+        driver_lint_whitelist: None,
     };
 
     validate_commandline_args_with_session_available(&sess);
