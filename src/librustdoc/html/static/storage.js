@@ -10,11 +10,20 @@
  * except according to those terms.
  */
 
+ /// <reference path="global.d.ts" />
+
+/** @type {HTMLLinkElement} */
 var currentTheme = document.getElementById("themeStyle");
+/** @type {HTMLLinkElement} */
 var mainTheme = document.getElementById("mainThemeStyle");
 
 var savedHref = [];
 
+/**
+ * @param {any[] | NodeListOf<any>} arr
+ * @param {(any) => any} func
+ * @return {boolean}
+ */
 function onEach(arr, func) {
     if (arr && arr.length > 0 && func) {
         for (var i = 0; i < arr.length; i++) {
@@ -26,6 +35,10 @@ function onEach(arr, func) {
     return false;
 }
 
+/**
+ * @param {string} name
+ * @param {string} value
+ */
 function updateLocalStorage(name, value) {
     if (typeof(Storage) !== "undefined") {
         localStorage[name] = value;
@@ -34,6 +47,10 @@ function updateLocalStorage(name, value) {
     }
 }
 
+/**
+ * @param {string} name
+ * @return {string}
+ */
 function getCurrentValue(name) {
     if (typeof(Storage) !== "undefined" && localStorage[name] !== undefined) {
         return localStorage[name];
@@ -41,6 +58,12 @@ function getCurrentValue(name) {
     return null;
 }
 
+/**
+ * @param {HTMLLinkElement} styleElem
+ * @param {HTMLLinkElement} mainStyleElem
+ * @param {string} newTheme
+ * @return {boolean}
+ */
 function switchTheme(styleElem, mainStyleElem, newTheme) {
     var fullBasicCss = "rustdoc" + resourcesSuffix + ".css";
     var fullNewTheme = newTheme + resourcesSuffix + ".css";

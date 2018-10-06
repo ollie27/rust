@@ -13,6 +13,9 @@
 /*jslint browser: true, es5: true */
 /*globals $: true, rootPath: true */
 
+/// <reference path="storage.js" />
+/// <reference path="global.d.ts" />
+
 (function() {
     "use strict";
 
@@ -44,6 +47,7 @@
                      "attr",
                      "derive"];
 
+    /** @type {HTMLInputElement} */
     var search_input = document.getElementsByClassName('search-input')[0];
 
     // On the search screen, so you remain on the last tab you opened.
@@ -70,6 +74,9 @@
         };
     }
 
+    /**
+     * @return {string}
+     */
     function getPageId() {
         var id = document.location.href.split('#')[1];
         if (id) {
@@ -78,6 +85,11 @@
         return null;
     }
 
+    /**
+     * @param {Element} elem
+     * @param {string} className
+     * @return {boolean}
+     */
     function hasClass(elem, className) {
         if (elem && className && elem.className) {
             var elemClass = elem.className;
@@ -102,6 +114,10 @@
         return false;
     }
 
+    /**
+     * @param {Element} elem
+     * @param {string} className
+     */
     function addClass(elem, className) {
         if (elem && className && !hasClass(elem, className)) {
             if (elem.className && elem.className.length > 0) {
@@ -112,6 +128,10 @@
         }
     }
 
+    /**
+     * @param {Element} elem
+     * @param {string} className
+     */
     function removeClass(elem, className) {
         if (elem && className && elem.className) {
             elem.className = (" " + elem.className + " ").replace(" " + className + " ", " ")
@@ -119,6 +139,9 @@
         }
     }
 
+    /**
+     * @param {HTMLElement} elem
+     */
     function isHidden(elem) {
         return (elem.offsetParent === null)
     }
@@ -138,6 +161,7 @@
                 sidebar.appendChild(div);
             }
         }
+        /** @type {HTMLCollectionOf<HTMLDivElement>} */
         var themePicker = document.getElementsByClassName("theme-picker");
         if (themePicker && themePicker.length > 0) {
             themePicker[0].style.display = "none";
@@ -156,6 +180,7 @@
             filler.remove();
         }
         document.getElementsByTagName("body")[0].style.marginTop = '';
+        /** @type {HTMLCollectionOf<HTMLDivElement>} */
         var themePicker = document.getElementsByClassName("theme-picker");
         if (themePicker && themePicker.length > 0) {
             themePicker[0].style.display = null;
@@ -170,7 +195,11 @@
         removeClass(e, 'js-only');
     });
 
+    /**
+     * @return {QueryStringParams}
+     */
     function getQueryStringParams() {
+        /** @type {QueryStringParams} */
         var params = {};
         window.location.search.substring(1).split("&").
             map(function(s) {
@@ -186,6 +215,9 @@
           window.history && typeof window.history.pushState === "function";
     }
 
+    /**
+     * @param {HashChangeEvent} ev
+     */
     function highlightSourceLines(ev) {
         // If we're in mobile mode, we should add the sidebar in any case.
         hideSidebar();
@@ -230,6 +262,7 @@
     function expandSection(id) {
         var elem = document.getElementById(id);
         if (elem && isHidden(elem)) {
+            /** @type {HTMLElement} */
             var h3 = elem.parentNode.previousSibling;
             if (h3 && h3.tagName !== 'H3') {
                 h3 = h3.previousSibling; // skip div.docblock
@@ -258,6 +291,10 @@
     // keypress on hitting the Escape key.
     //
     // So I guess you could say things are getting pretty interoperable.
+    /**
+     * @param {KeyboardEvent} ev
+     * @return {string}
+     */
     function getVirtualKey(ev) {
         if ("key" in ev && typeof ev.key != "undefined")
             return ev.key;
@@ -268,6 +305,10 @@
         return String.fromCharCode(c);
     }
 
+    /**
+     * @param {boolean} display
+     * @param {Event} ev
+     */
     function displayHelp(display, ev) {
         if (display === true) {
             if (hasClass(help, "hidden")) {
@@ -282,6 +323,10 @@
         }
     }
 
+    /**
+     * @param {Event} ev
+     * @param {HTMLElement} help
+     */
     function handleEscape(ev, help) {
         hideModal();
         var search = document.getElementById("search");
@@ -296,6 +341,9 @@
         defocusSearchBar();
     }
 
+    /**
+     * @param {KeyboardEvent} ev
+     */
     function handleShortcut(ev) {
         // Don't interfere with browser shortcuts
         if (ev.ctrlKey || ev.altKey || ev.metaKey) {
@@ -395,27 +443,27 @@
         }
     };
 
-    var x = document.getElementsByClassName('version-selector');
-    if (x.length > 0) {
-        x[0].onchange = function() {
-            var i, match,
-                url = document.location.href,
-                stripped = '',
-                len = rootPath.match(/\.\.\//g).length + 1;
+    // var x = document.getElementsByClassName('version-selector');
+    // if (x.length > 0) {
+    //     x[0].onchange = function() {
+    //         var i, match,
+    //             url = document.location.href,
+    //             stripped = '',
+    //             len = rootPath.match(/\.\.\//g).length + 1;
 
-            for (i = 0; i < len; ++i) {
-                match = url.match(/\/[^\/]*$/);
-                if (i < len - 1) {
-                    stripped = match[0] + stripped;
-                }
-                url = url.substring(0, url.length - match[0].length);
-            }
+    //         for (i = 0; i < len; ++i) {
+    //             match = url.match(/\/[^\/]*$/);
+    //             if (i < len - 1) {
+    //                 stripped = match[0] + stripped;
+    //             }
+    //             url = url.substring(0, url.length - match[0].length);
+    //         }
 
-            url += '/' + document.getElementsByClassName('version-selector')[0].value + stripped;
+    //         url += '/' + document.getElementsByClassName('version-selector')[0].value + stripped;
 
-            document.location.href = url;
-        };
-    }
+    //         document.location.href = url;
+    //     };
+    // }
 
     /**
      * A function to compute the Levenshtein distance between two strings
@@ -425,6 +473,11 @@
      * and was found at http://stackoverflow.com/a/18514751/745719
      */
     var levenshtein_row2 = [];
+    /**
+     * @param {string} s1
+     * @param {string} s2
+     * @return {number}
+     */
     function levenshtein(s1, s2) {
         if (s1 === s2) {
             return 0;
@@ -452,8 +505,13 @@
         return s1_len + s2_len;
     }
 
+    /**
+     * @param {SearchIndex} rawSearchIndex
+     */
     function initSearch(rawSearchIndex) {
-        var currentResults, index, searchIndex;
+        /** @type {SearchItem[]} */
+        var searchIndex;
+        var currentResults, index;
         var MAX_LEV_DISTANCE = 3;
         var MAX_RESULTS = 200;
         var GENERICS_DATA = 1;
@@ -472,10 +530,10 @@
 
         /**
          * Executes the query and builds an index of results
-         * @param  {[Object]} query     [The user query]
-         * @param  {[type]} searchWords [The list of search words to query
-         *                               against]
-         * @return {[type]}             [A search index of results]
+         * @param  {SearchQuery} query       The user query
+         * @param  {string[]} searchWords The list of search words to query
+         *                               against
+         * @return {SearchResults}             A search index of results
          */
         function execQuery(query, searchWords) {
             function itemTypeFromName(typename) {
@@ -490,8 +548,13 @@
             var valLower = query.query.toLowerCase(),
                 val = valLower,
                 typeFilter = itemTypeFromName(query.type),
-                results = {}, results_in_args = {}, results_returned = {},
                 split = valLower.split("::");
+            /** @type {SearchResultIndecies} */
+            var results = {}
+            /** @type {SearchResultIndecies} */
+            var results_in_args = {}
+            /** @type {SearchResultIndecies} */
+            var results_returned = {}
 
             for (var z = 0; z < split.length; ++z) {
                 if (split[z] === "") {
@@ -500,6 +563,11 @@
                 }
             }
 
+            /**
+             * @param {SearchResultIndex[]} results
+             * @param {boolean} isType
+             * @return {SearchItem[]}
+             */
             function transformResults(results, isType) {
                 var out = [];
                 for (i = 0; i < results.length; ++i) {
@@ -523,7 +591,14 @@
                 return out;
             }
 
+            /**
+             *
+             * @param {SearchResultIndecies | SearchResultIndex[]} results
+             * @param {boolean} isType
+             * @return {SearchItem[]}
+             */
             function sortResults(results, isType) {
+                /** @type {SearchResultIndex[]} */
                 var ar = [];
                 for (var entry in results) {
                     if (results.hasOwnProperty(entry)) {
@@ -628,6 +703,10 @@
                 return transformResults(results);
             }
 
+            /**
+             * @param {string} val
+             * @return {SearchGenerics}
+             */
             function extractGenerics(val) {
                 val = val.toLowerCase();
                 if (val.indexOf('<') !== -1) {
@@ -643,6 +722,11 @@
                 };
             }
 
+            /**
+             * @param {SearchFunctionArgument} obj
+             * @param {SearchGenerics} val
+             * @return {number}
+             */
             function checkGenerics(obj, val) {
                 // The names match, but we need to be sure that all generics kinda
                 // match as well.
@@ -680,6 +764,11 @@
             }
 
             // Check for type name and type generics (if any).
+            /**
+             * @param {SearchFunctionArgument} obj
+             * @param {SearchGenerics} val
+             * @return {number | boolean}
+             */
             function checkType(obj, val, literalSearch) {
                 var lev_distance = MAX_LEV_DISTANCE + 1;
                 if (obj[NAME] === val.name) {
@@ -747,6 +836,12 @@
                 return lev_distance + 1;
             }
 
+            /**
+             * @param {SearchItem} obj
+             * @param {SearchGenerics} val
+             * @param {boolean} literalSearch
+             * @return {number | boolean}
+             */
             function findArg(obj, val, literalSearch) {
                 var lev_distance = MAX_LEV_DISTANCE + 1;
 
@@ -766,6 +861,12 @@
                 return literalSearch === true ? false : lev_distance;
             }
 
+            /**
+             * @param {SearchItem} obj
+             * @param {SearchGenerics} val
+             * @param {boolean} literalSearch
+             * @return {number | boolean}
+             */
             function checkReturned(obj, val, literalSearch) {
                 var lev_distance = MAX_LEV_DISTANCE + 1;
 
@@ -782,6 +883,12 @@
                 return literalSearch === true ? false : lev_distance;
             }
 
+            /**
+             * @param {string[]} contains
+             * @param {string} lastElem
+             * @param {SearchItem} ty
+             * @return {number}
+             */
             function checkPath(contains, lastElem, ty) {
                 if (contains.length === 0) {
                     return 0;
@@ -817,6 +924,12 @@
                 return ret_lev;
             }
 
+            /**
+             *
+             * @param {number} filter
+             * @param {number} type
+             * @return {boolean}
+             */
             function typePassesFilter(filter, type) {
                 // No filter
                 if (filter < 0) return true;
@@ -1080,6 +1193,7 @@
             };
             if (ALIASES && ALIASES[window.currentCrate] &&
                     ALIASES[window.currentCrate][query.raw]) {
+                /** @type {(Alias | SearchItem)[]} */
                 var aliases = ALIASES[window.currentCrate][query.raw];
                 for (var i = 0; i < aliases.length; ++i) {
                     aliases[i].is_alias = true;
@@ -1107,11 +1221,11 @@
          * This could be written functionally, but I wanted to minimise
          * functions on stack.
          *
-         * @param  {[string]} name   [The name of the result]
-         * @param  {[string]} path   [The path of the result]
-         * @param  {[string]} keys   [The keys to be used (["file", "open"])]
-         * @param  {[object]} parent [The parent of the result]
-         * @return {[boolean]}       [Whether the result is valid or not]
+         * @param  {string} name   The name of the result
+         * @param  {string} path   The path of the result
+         * @param  {string[]} keys   The keys to be used (["file", "open"])
+         * @param  {SearchParent}    parent The parent of the result
+         * @return {boolean}       Whether the result is valid or not
          */
         function validateResult(name, path, keys, parent) {
             for (var i = 0; i < keys.length; ++i) {
@@ -1132,6 +1246,10 @@
             return true;
         }
 
+        /**
+         * @param {string} raw
+         * @return {SearchQuery}
+         */
         function getQuery(raw) {
             var matches, type, query;
             query = raw;
@@ -1251,6 +1369,10 @@
             };
         }
 
+        /**
+         * @param {SearchItem} item
+         * @return {[string, string]}
+         */
         function buildHrefAndPath(item) {
             var displayPath;
             var href;
@@ -1289,12 +1411,20 @@
             return [displayPath, href];
         }
 
+        /**
+         * @param {string} content
+         * @return {string}
+         */
         function escape(content) {
             var h1 = document.createElement('h1');
             h1.textContent = content;
             return h1.innerHTML;
         }
 
+        /**
+         * @param {string} path
+         * @return {string}
+         */
         function pathSplitter(path) {
             var tmp = '<span>' + path.replace(/::/g, '::</span><span>');
             if (tmp.endsWith("<span>")) {
@@ -1303,6 +1433,12 @@
             return tmp;
         }
 
+        /**
+         * @param {SearchItem[]} array
+         * @param {SearchQuery} query
+         * @param {boolean} display
+         * @return {[string, number]}
+         */
         function addTab(array, query, display) {
             var extraStyle = '';
             if (display === false) {
@@ -1350,6 +1486,12 @@
             return [output, length];
         }
 
+        /**
+         * @param {number} tabNb
+         * @param {string} text
+         * @param {number} nbElems
+         * @return {string}
+         */
         function makeTabHeader(tabNb, text, nbElems) {
             if (currentTab === tabNb) {
                 return '<div class="selected">' + text +
@@ -1358,6 +1500,9 @@
             return '<div>' + text + ' <div class="count">(' + nbElems + ')</div></div>';
         }
 
+        /**
+         * @param {SearchResults} results
+         */
         function showResults(results) {
             if (results['others'].length === 1 &&
                 getCurrentValue('rustdoc-go-to-only-result') === "true") {
@@ -1399,6 +1544,7 @@
                 e.style.width = width + 'px';
             });
             initSearchNav();
+            /** @type {NodeListOf<HTMLDivElement>} */
             var elems = document.getElementById('titles').childNodes;
             elems[0].onclick = function() { printTab(0); };
             elems[1].onclick = function() { printTab(1); };
@@ -1406,8 +1552,14 @@
             printTab(currentTab);
         }
 
+        /**
+         * @param {SearchQuery} query
+         * @param {string[]} searchWords
+         * @return {SearchResults}
+         */
         function execSearch(query, searchWords) {
             var queries = query.raw.split(",");
+            /** @type {SearchResultsMultiple} */
             var results = {
                 'in_args': [],
                 'returned': [],
@@ -1438,6 +1590,10 @@
                     return start;
                 }
 
+                /**
+                 * @param {SearchItem[][]} arrays
+                 * @return {SearchItem[]}
+                 */
                 function mergeArrays(arrays) {
                     var ret = [];
                     var positions = [];
@@ -1510,6 +1666,10 @@
             showResults(execSearch(query, index));
         }
 
+        /**
+         * @param {SearchIndex} rawSearchIndex
+         * @return {string[]}
+         */
         function buildIndex(rawSearchIndex) {
             searchIndex = [];
             var searchWords = [];
@@ -1535,6 +1695,7 @@
                 var items = rawSearchIndex[crate].items;
                 // an array of [(Number) item type,
                 //              (String) name]
+                /** @type {([number, string] | SearchParent)[]} */
                 var paths = rawSearchIndex[crate].paths;
 
                 // convert `paths` into an object form
@@ -1698,10 +1859,16 @@
     window.initSearch = initSearch;
 
     // delayed sidebar rendering.
+    /**
+    * @param {SidebarItems} items
+    */
     function initSidebarItems(items) {
         var sidebar = document.getElementsByClassName('sidebar-elems')[0];
         var current = window.sidebarCurrent;
-
+        /**
+        * @param {string} shortty
+        * @param {string} longty
+        */
         function block(shortty, longty) {
             var filtered = items[shortty];
             if (!filtered) { return; }
@@ -1807,6 +1974,10 @@
         window.register_implementors(window.pending_implementors);
     }
 
+    /**
+     * @param {boolean} sectionIsCollapsed
+     * @return {string}
+     */
     function labelForToggleButton(sectionIsCollapsed) {
         if (sectionIsCollapsed) {
             // button will expand the section
@@ -1817,6 +1988,12 @@
         return "\u2212"; // "\u2212" is '−' minus sign
     }
 
+    /**
+     *
+     * @param {HTMLAnchorElement} elem
+     * @param {string} className
+     * @param {(Node) => void} func
+     */
     function onEveryMatchingChild(elem, className, func) {
         if (elem && className && func) {
             for (var i = 0; i < elem.childNodes.length; i++) {
@@ -1830,6 +2007,7 @@
     }
 
     function toggleAllDocs(pageId, fromAutoCollapse) {
+        /** @type {HTMLAnchorElement} */
         var toggle = document.getElementById("toggle-all-docs");
         if (!toggle) {
             return;
@@ -1861,6 +2039,11 @@
         }
     }
 
+    /**
+     * @param {HTMLAnchorElement} toggle
+     * @param {string} mode
+     * @param {string} pageId
+     */
     function collapseDocs(toggle, mode, pageId) {
         if (!toggle || !toggle.parentNode) {
             return;
@@ -1978,6 +2161,10 @@
         }
     }
 
+    /**
+     * @param {string} pageId
+     * @param {boolean} collapse
+     */
     function autoCollapse(pageId, collapse) {
         if (collapse) {
             toggleAllDocs(pageId, true);
@@ -2011,15 +2198,24 @@
         }
     }
 
+    /** @type {HTMLAnchorElement} */
     var x = document.getElementById('toggle-all-docs');
     if (x) {
         x.onclick = toggleAllDocs;
     }
 
+    /**
+     * @param {Node} newNode
+     * @param {Node} referenceNode
+     */
     function insertAfter(newNode, referenceNode) {
         referenceNode.parentNode.insertBefore(newNode, referenceNode.nextSibling);
     }
 
+    /**
+     * @param {NodeListOf<Node>} elems
+     * @return {boolean}
+     */
     function checkIfThereAreMethods(elems) {
         var areThereMethods = false;
 
@@ -2037,7 +2233,9 @@
     toggle.className = 'collapse-toggle';
     toggle.innerHTML = "[<span class='inner'>" + labelForToggleButton(false) + "</span>]";
 
+    /** @type {(e: HTMLElement) => void} */
     var func = function(e) {
+        /** @type {HTMLElement} */
         var next = e.nextElementSibling;
         if (hasClass(e, 'impl') && next && hasClass(next, 'docblock')) {
             next = next.nextElementSibling;
@@ -2058,6 +2256,13 @@
     onEach(document.getElementsByClassName('associatedconstant'), func);
     onEach(document.getElementsByClassName('impl'), func);
 
+    /**
+     * @param {string} otherMessage
+     * @param {string} fontSize
+     * @param {string} extraClass
+     * @param {boolean} show
+     * @return {HTMLDivElement}
+     */
     function createToggle(otherMessage, fontSize, extraClass, show) {
         var span = document.createElement('span');
         span.className = 'toggle-label';
@@ -2074,6 +2279,7 @@
             span.style.fontSize = fontSize;
         }
 
+        /** @type {HTMLAnchorElement} */
         var mainToggle = toggle.cloneNode(true);
         mainToggle.appendChild(span);
 
@@ -2149,6 +2355,10 @@
         }
     });
 
+    /**
+     * @param {HTMLAnchorElement} tog
+     * @return {HTMLDivElement}
+     */
     function createToggleWrapper(tog) {
         var span = document.createElement('span');
         span.className = 'toggle-label';
@@ -2236,6 +2446,9 @@
         };
     });
 
+    /**
+     * @param {HTMLInputElement} search_input
+     */
     function putBackSearch(search_input) {
         if (search_input.value !== "") {
             addClass(document.getElementById("main"), "hidden");
@@ -2262,6 +2475,7 @@
         search.innerHTML = '<h3 style="text-align: center;">Loading search results...</h3>';
     }
 
+    /** @type {HTMLDivElement} */
     var sidebar_menu = document.getElementsByClassName("sidebar-menu")[0];
     if (sidebar_menu) {
         sidebar_menu.onclick = function() {
