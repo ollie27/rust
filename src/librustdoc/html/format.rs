@@ -512,21 +512,6 @@ fn primitive_link(f: &mut fmt::Formatter,
     Ok(())
 }
 
-/// Helper to render type parameters
-fn tybounds(w: &mut fmt::Formatter,
-            typarams: &Option<Vec<clean::GenericBound>>) -> fmt::Result {
-    match *typarams {
-        Some(ref params) => {
-            for param in params {
-                write!(w, " + ")?;
-                fmt::Display::fmt(param, w)?;
-            }
-            Ok(())
-        }
-        None => Ok(())
-    }
-}
-
 impl<'a> HRef<'a> {
     pub fn new(did: DefId, text: &'a str) -> HRef<'a> {
         HRef { did: did, text: text }
@@ -552,13 +537,9 @@ fn fmt_type(t: &clean::Type, f: &mut fmt::Formatter, use_absolute: bool) -> fmt:
         clean::Generic(ref name) => {
             f.write_str(name)
         }
-        clean::ResolvedPath{ did, ref typarams, ref path, is_generic } => {
-            if typarams.is_some() {
-                f.write_str("dyn ")?;
-            }
+        clean::ResolvedPath{ did, ref path, is_generic } => {
             // Paths like T::Output and Self::Output should be rendered with all segments
-            resolved_path(f, did, path, is_generic, use_absolute)?;
-            tybounds(f, typarams)
+            resolved_path(f, did, path, is_generic, use_absolute)
         }
         clean::Infer => write!(f, "_"),
         clean::Primitive(prim) => primitive_link(f, prim, prim.as_str()),
@@ -655,7 +636,7 @@ fn fmt_type(t: &clean::Type, f: &mut fmt::Formatter, use_absolute: bool) -> fmt:
                         }
                     }
                 }
-                clean::ResolvedPath { typarams: Some(ref v), .. } if !v.is_empty() => {
+                clean::Dynamic(ref dyn_trait) if dyn_trait.bounds.len() > 1 => {
                     write!(f, "{}{}{}(", amp, lt, m)?;
                     fmt_type(&ty, f, use_absolute)?;
                     write!(f, ")")
@@ -705,7 +686,7 @@ fn fmt_type(t: &clean::Type, f: &mut fmt::Formatter, use_absolute: bool) -> fmt:
                 //        the ugliness comes from inlining across crates where
                 //        everything comes in as a fully resolved QPath (hard to
                 //        look at).
-                box clean::ResolvedPath { did, ref typarams, .. } => {
+                box clean::ResolvedPath { did, .. } => {
                     match href(did) {
                         Some((ref url, _, ref path)) if !f.alternate() => {
                             write!(f,
@@ -718,9 +699,6 @@ fn fmt_type(t: &clean::Type, f: &mut fmt::Formatter, use_absolute: bool) -> fmt:
                         }
                         _ => write!(f, "{}", name)?,
                     }
-
-                    // FIXME: `typarams` are not rendered, and this seems bad?
-                    drop(typarams);
                     Ok(())
                 }
                 _ => {
@@ -730,6 +708,15 @@ fn fmt_type(t: &clean::Type, f: &mut fmt::Formatter, use_absolute: bool) -> fmt:
         }
         clean::Unique(..) => {
             panic!("should have been cleaned")
+        }
+        clean::Dynamic(ref dyn_trait) => {
+            f.write_str("dyn ")?;
+            fmt::Display::fmt(&dyn_trait.bounds[0], f)?;
+            for bound in &dyn_trait.bounds[1..] {
+                f.write_str(" + ")?;
+                fmt::Display::fmt(bound, f)?;
+            }
+            Ok(())
         }
     }
 }
@@ -759,7 +746,7 @@ fn fmt_impl(i: &clean::Impl,
             fmt::Display::fmt(ty, f)?;
         } else {
             match *ty {
-                clean::ResolvedPath { typarams: None, ref path, is_generic: false, .. } => {
+                clean::ResolvedPath { ref path, is_generic: false, .. } => {
                     let last = path.segments.last().unwrap();
                     fmt::Display::fmt(&last.name, f)?;
                     fmt::Display::fmt(&last.args, f)?;

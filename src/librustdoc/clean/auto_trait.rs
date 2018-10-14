@@ -443,7 +443,6 @@ impl<'a, 'tcx, 'rcx, 'cstore> AutoTraitFinder<'a, 'tcx, 'rcx, 'cstore> {
                     let new_ty = match &poly_trait.trait_ {
                         &Type::ResolvedPath {
                             ref path,
-                            ref typarams,
                             ref did,
                             ref is_generic,
                         } => {
@@ -477,7 +476,6 @@ impl<'a, 'tcx, 'rcx, 'cstore> AutoTraitFinder<'a, 'tcx, 'rcx, 'cstore> {
 
                             Type::ResolvedPath {
                                 path: new_path,
-                                typarams: typarams.clone(),
                                 did: did.clone(),
                                 is_generic: *is_generic,
                             }
@@ -673,7 +671,6 @@ impl<'a, 'tcx, 'rcx, 'cstore> AutoTraitFinder<'a, 'tcx, 'rcx, 'cstore> {
                             match **trait_ {
                                 Type::ResolvedPath {
                                     path: ref trait_path,
-                                    ref typarams,
                                     ref did,
                                     ref is_generic,
                                 } => {
@@ -728,7 +725,6 @@ impl<'a, 'tcx, 'rcx, 'cstore> AutoTraitFinder<'a, 'tcx, 'rcx, 'cstore> {
                                         PolyTrait {
                                             trait_: Type::ResolvedPath {
                                                 path: new_trait_path,
-                                                typarams: typarams.clone(),
                                                 did: did.clone(),
                                                 is_generic: *is_generic,
                                             },

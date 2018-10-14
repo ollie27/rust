@@ -1002,7 +1002,7 @@ themePicker.onblur = handleThemeButtonsBlur;
             write!(implementors, "{{text:{},synthetic:{},types:{}}},",
                    as_json(&imp.inner_impl().to_string()),
                    imp.inner_impl().synthetic,
-                   as_json(&collect_paths_for_type(imp.inner_impl().for_.clone()))).unwrap();
+                   as_json(&collect_paths_for_type(&imp.inner_impl().for_))).unwrap();
         }
         implementors.push_str("];");
 
@@ -1424,6 +1424,10 @@ impl DocFolder for Cache {
                         self.parent_stack.push(did);
                         true
                     }
+                    ref t @ clean::Dynamic(..) => {
+                        self.parent_stack.push(t.def_id().unwrap());
+                        true
+                    }
                     ref t => {
                         let prim_did = t.primitive_type().and_then(|t| {
                             self.primitive_locations.get(&t).cloned()
@@ -1456,6 +1460,9 @@ impl DocFolder for Cache {
                             type_: box clean::ResolvedPath { did, .. }, ..
                         } => {
                             dids.insert(did);
+                        }
+                        ref t @ clean::Dynamic(..) => {
+                            dids.insert(t.def_id().unwrap());
                         }
                         ref t => {
                             let did = t.primitive_type().and_then(|t| {
@@ -2701,17 +2708,22 @@ fn item_function(w: &mut fmt::Formatter, cx: &Context, it: &clean::Item,
     document(w, cx, it)
 }
 
+fn type_last_name(t: &clean::Type) -> Option<&str> {
+    match t {
+        clean::ResolvedPath { ref path, is_generic: false, .. } => Some(path.last_name()),
+        clean::BorrowedRef { type_, .. } => type_last_name(type_),
+        clean::Dynamic(dyn_trait) => type_last_name(dyn_trait.principal()),
+        _ => None,
+    }
+}
+
 fn render_implementor(cx: &Context, implementor: &Impl, w: &mut fmt::Formatter,
                       implementor_dups: &FxHashMap<&str, (DefId, bool)>) -> fmt::Result {
     // If there's already another implementor that has the same abbridged name, use the
     // full path, for example in `std::iter::ExactSizeIterator`
-    let use_absolute = match implementor.inner_impl().for_ {
-        clean::ResolvedPath { ref path, is_generic: false, .. } |
-        clean::BorrowedRef {
-            type_: box clean::ResolvedPath { ref path, is_generic: false, .. },
-            ..
-        } => implementor_dups[path.last_name()].1,
-        _ => false,
+    let use_absolute = match type_last_name(&implementor.inner_impl().for_) {
+        Some(name) => implementor_dups[name].1,
+        None => false,
     };
     render_impl(w, cx, implementor, AssocItemLink::Anchor(None), RenderMode::Normal,
                 implementor.impl_item.stable_since(), false, Some(use_absolute))?;
@@ -2942,19 +2954,13 @@ fn item_trait(
         // if any Types with the same name but different DefId have been found.
         let mut implementor_dups: FxHashMap<&str, (DefId, bool)> = FxHashMap();
         for implementor in implementors {
-            match implementor.inner_impl().for_ {
-                clean::ResolvedPath { ref path, did, is_generic: false, .. } |
-                clean::BorrowedRef {
-                    type_: box clean::ResolvedPath { ref path, did, is_generic: false, .. },
-                    ..
-                } => {
-                    let &mut (prev_did, ref mut has_duplicates) =
-                        implementor_dups.entry(path.last_name()).or_insert((did, false));
-                    if prev_did != did {
-                        *has_duplicates = true;
-                    }
+            if let Some(name) = type_last_name(&implementor.inner_impl().for_) {
+                let did = implementor.inner_impl().for_.def_id().unwrap();
+                let &mut (prev_did, ref mut has_duplicates) =
+                    implementor_dups.entry(name).or_insert((did, false));
+                if prev_did != did {
+                    *has_duplicates = true;
                 }
-                _ => {}
             }
         }
 
@@ -2997,7 +3003,7 @@ fn item_trait(
             write!(w, "{}", synthetic_impl_header)?;
             for implementor in synthetic {
                 synthetic_types.extend(
-                    collect_paths_for_type(implementor.inner_impl().for_.clone())
+                    collect_paths_for_type(&implementor.inner_impl().for_)
                 );
                 render_implementor(cx, implementor, w, &implementor_dups)?;
             }
@@ -4701,7 +4707,7 @@ fn get_index_type(clean_type: &clean::Type) -> Type {
 /// types are re-exported, we don't use the corresponding
 /// entry from the js file, as inlining will have already
 /// picked up the impl
-fn collect_paths_for_type(first_ty: clean::Type) -> Vec<String> {
+fn collect_paths_for_type(first_ty: &clean::Type) -> Vec<String> {
     let mut out = Vec::new();
     let mut visited = FxHashSet();
     let mut work = VecDeque::new();
@@ -4710,7 +4716,7 @@ fn collect_paths_for_type(first_ty: clean::Type) -> Vec<String> {
     work.push_back(first_ty);
 
     while let Some(ty) = work.pop_front() {
-        if !visited.insert(ty.clone()) {
+        if !visited.insert(ty) {
             continue;
         }
 
@@ -4728,27 +4734,30 @@ fn collect_paths_for_type(first_ty: clean::Type) -> Vec<String> {
 
             },
             clean::Type::Tuple(tys) => {
-                work.extend(tys.into_iter());
+                work.extend(tys);
             },
             clean::Type::Slice(ty) => {
-                work.push_back(*ty);
+                work.push_back(ty);
             }
             clean::Type::Array(ty, _) => {
-                work.push_back(*ty);
+                work.push_back(ty);
             },
             clean::Type::Unique(ty) => {
-                work.push_back(*ty);
+                work.push_back(ty);
             },
             clean::Type::RawPointer(_, ty) => {
-                work.push_back(*ty);
+                work.push_back(ty);
             },
             clean::Type::BorrowedRef { type_, .. } => {
-                work.push_back(*type_);
+                work.push_back(type_);
             },
             clean::Type::QPath { self_type, trait_, .. } => {
-                work.push_back(*self_type);
-                work.push_back(*trait_);
+                work.push_back(self_type);
+                work.push_back(trait_);
             },
+            clean::Type::Dynamic(dyn_trait) => {
+                work.push_back(dyn_trait.principal());
+            }
             _ => {}
         }
     };
@@ -4768,6 +4777,7 @@ fn get_index_type_name(clean_type: &clean::Type, accept_generic: bool) -> Option
         clean::Generic(ref s) if accept_generic => Some(s.clone()),
         clean::Primitive(ref p) => Some(format!("{:?}", p)),
         clean::BorrowedRef { ref type_, .. } => get_index_type_name(type_, accept_generic),
+        clean::Dynamic(ref dyn_trait) => get_index_type_name(dyn_trait.principal(), accept_generic),
         // FIXME: add all from clean::Type.
         _ => None
     }
