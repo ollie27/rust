@@ -21,24 +21,20 @@
 //! manner we pay a semi-large one-time cost up front for detecting whether a
 //! function is available but afterwards it's just a load and a jump.
 
-use ffi::CString;
 use sync::atomic::{AtomicUsize, Ordering};
 use sys::c;
 
-pub fn lookup(module: &str, symbol: &str) -> Option<usize> {
-    let mut module: Vec<u16> = module.encode_utf16().collect();
-    module.push(0);
-    let symbol = CString::new(symbol).unwrap();
+pub fn lookup(module: &[u16], symbol: &[u8]) -> Option<usize> {
     unsafe {
         let handle = c::GetModuleHandleW(module.as_ptr());
-        match c::GetProcAddress(handle, symbol.as_ptr()) as usize {
+        match c::GetProcAddress(handle, symbol.as_ptr() as c::LPCSTR) as usize {
             0 => None,
             n => Some(n),
         }
     }
 }
 
-pub fn store_func(ptr: &AtomicUsize, module: &str, symbol: &str,
+pub fn store_func(ptr: &AtomicUsize, module: &[u16], symbol: &[u8],
                   fallback: usize) -> usize {
     let value = lookup(module, symbol).unwrap_or(fallback);
     ptr.store(value, Ordering::SeqCst);
@@ -46,7 +42,7 @@ pub fn store_func(ptr: &AtomicUsize, module: &str, symbol: &str,
 }
 
 macro_rules! compat_fn {
-    ($module:ident: $(
+    ($module:expr, $(
         pub fn $symbol:ident($($argname:ident: $argtype:ty),*)
                                   -> $rettype:ty {
             $($body:expr);*
@@ -62,8 +58,8 @@ macro_rules! compat_fn {
 
             fn load() -> usize {
                 ::sys::compat::store_func(&PTR,
-                                          stringify!($module),
-                                          stringify!($symbol),
+                                          &$module,
+                                          concat!(stringify!($symbol), "\0").as_bytes(),
                                           fallback as usize)
             }
             unsafe extern "system" fn fallback($($argname: $argtype),*)

@@ -1307,7 +1307,17 @@ extern "system" {
 // Functions that aren't available on every version of Windows that we support,
 // but we still use them and just provide some form of a fallback implementation.
 compat_fn! {
-    kernel32:
+    [
+        u16::from(b'k'),
+        u16::from(b'e'),
+        u16::from(b'r'),
+        u16::from(b'n'),
+        u16::from(b'e'),
+        u16::from(b'l'),
+        u16::from(b'3'),
+        u16::from(b'2'),
+        u16::from(b'\0'),
+    ],
 
     pub fn SetThreadDescription(hThread: HANDLE,
                                 lpThreadDescription: LPCWSTR) -> HRESULT {
