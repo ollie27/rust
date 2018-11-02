@@ -1277,6 +1277,31 @@ extern "system" {
 
     #[link_name = "SystemFunction036"]
     pub fn RtlGenRandom(RandomBuffer: *mut u8, RandomBufferLength: ULONG) -> BOOLEAN;
+
+    pub fn CreateSymbolicLinkW(_lpSymlinkFileName: LPCWSTR,
+                               _lpTargetFileName: LPCWSTR,
+                               _dwFlags: DWORD) -> BOOLEAN;
+    pub fn GetFinalPathNameByHandleW(_hFile: HANDLE,
+                                     _lpszFilePath: LPCWSTR,
+                                     _cchFilePath: DWORD,
+                                     _dwFlags: DWORD) -> DWORD;
+    pub fn SetThreadStackGuarantee(_size: *mut c_ulong) -> BOOL;
+    pub fn SetFileInformationByHandle(_hFile: HANDLE,
+                    _FileInformationClass: FILE_INFO_BY_HANDLE_CLASS,
+                    _lpFileInformation: LPVOID,
+                    _dwBufferSize: DWORD) -> BOOL;
+    pub fn SleepConditionVariableSRW(ConditionVariable: PCONDITION_VARIABLE,
+                                     SRWLock: PSRWLOCK,
+                                     dwMilliseconds: DWORD,
+                                     Flags: ULONG) -> BOOL;
+    pub fn WakeConditionVariable(ConditionVariable: PCONDITION_VARIABLE);
+    pub fn WakeAllConditionVariable(ConditionVariable: PCONDITION_VARIABLE);
+    pub fn AcquireSRWLockExclusive(SRWLock: PSRWLOCK);
+    pub fn AcquireSRWLockShared(SRWLock: PSRWLOCK);
+    pub fn ReleaseSRWLockExclusive(SRWLock: PSRWLOCK);
+    pub fn ReleaseSRWLockShared(SRWLock: PSRWLOCK);
+    pub fn TryAcquireSRWLockExclusive(SRWLock: PSRWLOCK) -> BOOLEAN;
+    pub fn TryAcquireSRWLockShared(SRWLock: PSRWLOCK) -> BOOLEAN;
 }
 
 // Functions that aren't available on every version of Windows that we support,
@@ -1284,61 +1309,9 @@ extern "system" {
 compat_fn! {
     kernel32:
 
-    pub fn CreateSymbolicLinkW(_lpSymlinkFileName: LPCWSTR,
-                               _lpTargetFileName: LPCWSTR,
-                               _dwFlags: DWORD) -> BOOLEAN {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED as DWORD); 0
-    }
-    pub fn GetFinalPathNameByHandleW(_hFile: HANDLE,
-                                     _lpszFilePath: LPCWSTR,
-                                     _cchFilePath: DWORD,
-                                     _dwFlags: DWORD) -> DWORD {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED as DWORD); 0
-    }
-    pub fn SetThreadStackGuarantee(_size: *mut c_ulong) -> BOOL {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED as DWORD); 0
-    }
     pub fn SetThreadDescription(hThread: HANDLE,
                                 lpThreadDescription: LPCWSTR) -> HRESULT {
         SetLastError(ERROR_CALL_NOT_IMPLEMENTED as DWORD); E_NOTIMPL
-    }
-    pub fn SetFileInformationByHandle(_hFile: HANDLE,
-                    _FileInformationClass: FILE_INFO_BY_HANDLE_CLASS,
-                    _lpFileInformation: LPVOID,
-                    _dwBufferSize: DWORD) -> BOOL {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED as DWORD); 0
-    }
-    pub fn SleepConditionVariableSRW(ConditionVariable: PCONDITION_VARIABLE,
-                                     SRWLock: PSRWLOCK,
-                                     dwMilliseconds: DWORD,
-                                     Flags: ULONG) -> BOOL {
-        panic!("condition variables not available")
-    }
-    pub fn WakeConditionVariable(ConditionVariable: PCONDITION_VARIABLE)
-                                 -> () {
-        panic!("condition variables not available")
-    }
-    pub fn WakeAllConditionVariable(ConditionVariable: PCONDITION_VARIABLE)
-                                    -> () {
-        panic!("condition variables not available")
-    }
-    pub fn AcquireSRWLockExclusive(SRWLock: PSRWLOCK) -> () {
-        panic!("rwlocks not available")
-    }
-    pub fn AcquireSRWLockShared(SRWLock: PSRWLOCK) -> () {
-        panic!("rwlocks not available")
-    }
-    pub fn ReleaseSRWLockExclusive(SRWLock: PSRWLOCK) -> () {
-        panic!("rwlocks not available")
-    }
-    pub fn ReleaseSRWLockShared(SRWLock: PSRWLOCK) -> () {
-        panic!("rwlocks not available")
-    }
-    pub fn TryAcquireSRWLockExclusive(SRWLock: PSRWLOCK) -> BOOLEAN {
-        panic!("rwlocks not available")
-    }
-    pub fn TryAcquireSRWLockShared(SRWLock: PSRWLOCK) -> BOOLEAN {
-        panic!("rwlocks not available")
     }
 }
 
@@ -1356,17 +1329,10 @@ mod gnu {
         pub fn OpenProcess(dwDesiredAccess: DWORD,
                            bInheritHandle: BOOL,
                            dwProcessId: DWORD) -> HANDLE;
-    }
-
-    compat_fn! {
-        kernel32:
-
         pub fn QueryFullProcessImageNameW(_hProcess: HANDLE,
                                           _dwFlags: DWORD,
                                           _lpExeName: LPWSTR,
-                                          _lpdwSize: LPDWORD) -> BOOL {
-            SetLastError(ERROR_CALL_NOT_IMPLEMENTED as DWORD); 0
-        }
+                                          _lpdwSize: LPDWORD) -> BOOL;
     }
 }
 
