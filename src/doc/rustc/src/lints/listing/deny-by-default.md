@@ -2,6 +2,28 @@
 
 These lints are all set to the 'deny' level by default.
 
+## const-err
+
+This lint detects an erroneous expression while doing constant evaluation. Some
+example code that triggers this lint:
+
+```rust,ignore
+let b = 200u8 + 200u8;
+```
+
+This will produce:
+
+```text
+error: attempt to add with overflow
+ --> src/main.rs:2:9
+  |
+2 | let b = 200u8 + 200u8;
+  |         ^^^^^^^^^^^^^
+  |
+```
+
+## duplicate-macro-exports
+
 ## exceeding-bitshifts
 
 This lint detects that a shift exceeds the type's number of bits. Some
@@ -20,6 +42,47 @@ error: bitshift exceeds the type's number of bits
 2 |     1_i32 << 32;
   |     ^^^^^^^^^^^
   |
+```
+
+## incoherent-fundamental-impls
+
+This lint detects potentially-conflicting impls that were erroneously allowed. Some
+example code that triggers this lint:
+
+```rust,ignore
+pub trait Trait1<X> {
+    type Output;
+}
+
+pub trait Trait2<X> {}
+
+pub struct A;
+
+impl<X, T> Trait1<X> for T where T: Trait2<X> {
+    type Output = ();
+}
+
+impl<X> Trait1<Box<X>> for A {
+    type Output = i32;
+}
+```
+
+This will produce:
+
+```text
+error: conflicting implementations of trait `Trait1<std::boxed::Box<_>>` for type `A`: (E0119)
+  --> src/main.rs:13:1
+   |
+9  | impl<X, T> Trait1<X> for T where T: Trait2<X> {
+   | --------------------------------------------- first implementation here
+...
+13 | impl<X> Trait1<Box<X>> for A {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ conflicting implementation for `A`
+   |
+   = note: #[deny(incoherent_fundamental_impls)] on by default
+   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+   = note: for more information, see issue #46205 <https://github.com/rust-lang/rust/issues/46205>
+   = note: downstream crates may implement trait `Trait2<std::boxed::Box<_>>` for type `A`
 ```
 
 ## invalid-type-param-default
@@ -45,6 +108,8 @@ error: defaults for type parameters are only allowed in `struct`, `enum`, `type`
   = note: for more information, see issue #36887 <https://github.com/rust-lang/rust/issues/36887>
 ```
 
+## irrefutable-let-patterns
+
 ## legacy-constructor-visibility
 
 [RFC 1506](https://github.com/rust-lang/rfcs/blob/master/text/1506-adt-kinds.md) modified some
@@ -54,7 +119,7 @@ example code that triggers this lint:
 ```rust,ignore
 mod m {
     pub struct S(u8);
-    
+
     fn f() {
         // this is trying to use S from the 'use' line, but because the `u8` is
         // not pub, it is private
@@ -79,7 +144,6 @@ error: private struct constructors are not usable through re-exports in outer mo
   = note: for more information, see issue #39207 <https://github.com/rust-lang/rust/issues/39207>
 ```
 
-
 ## legacy-directory-ownership
 
 The legacy_directory_ownership warning is issued when
@@ -91,6 +155,7 @@ The legacy_directory_ownership warning is issued when
 The warning can be fixed by renaming the parent module to "mod.rs" and moving
 it into its own directory if appropriate.
 
+## macro-expanded-macro-exports-accessed-by-absolute-paths
 
 ## missing-fragment-specifier
 
@@ -122,7 +187,6 @@ error: mutating transmuted &mut T from &T may cause undefined behavior, consider
   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
 ```
-
 
 ## no-mangle-const-items
 
@@ -201,45 +265,4 @@ error: invalid `crate_type` value
 1 | #![crate_type="lol"]
   | ^^^^^^^^^^^^^^^^^^^^
   |
-```
-
-## incoherent-fundamental-impls
-
-This lint detects potentially-conflicting impls that were erroneously allowed. Some
-example code that triggers this lint:
-
-```rust,ignore
-pub trait Trait1<X> {
-    type Output;
-}
-
-pub trait Trait2<X> {}
-
-pub struct A;
-
-impl<X, T> Trait1<X> for T where T: Trait2<X> {
-    type Output = ();
-}
-
-impl<X> Trait1<Box<X>> for A {
-    type Output = i32;
-}
-```
-
-This will produce:
-
-```text
-error: conflicting implementations of trait `Trait1<std::boxed::Box<_>>` for type `A`: (E0119)
-  --> src/main.rs:13:1
-   |
-9  | impl<X, T> Trait1<X> for T where T: Trait2<X> {
-   | --------------------------------------------- first implementation here
-...
-13 | impl<X> Trait1<Box<X>> for A {
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ conflicting implementation for `A`
-   |
-   = note: #[deny(incoherent_fundamental_impls)] on by default
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #46205 <https://github.com/rust-lang/rust/issues/46205>
-   = note: downstream crates may implement trait `Trait2<std::boxed::Box<_>>` for type `A`
 ```

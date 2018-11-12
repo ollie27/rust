@@ -2,25 +2,7 @@
 
 These lints are all set to the 'warn' level by default.
 
-## const-err
-
-This lint detects an erroneous expression while doing constant evaluation. Some
-example code that triggers this lint:
-
-```rust,ignore
-let b = 200u8 + 200u8;
-```
-
-This will produce:
-
-```text
-warning: attempt to add with overflow
- --> src/main.rs:2:9
-  |
-2 | let b = 200u8 + 200u8;
-  |         ^^^^^^^^^^^^^
-  |
-```
+## bad-repr
 
 ## dead-code
 
@@ -117,6 +99,8 @@ warning: found struct without foreign-function-safe representation annotation in
   |
 ```
 
+## intra-doc-link-resolution-failure
+
 ## late-bound-lifetime-arguments
 
 This lint detects detects generic lifetime arguments in path segments with
@@ -149,6 +133,33 @@ warning: cannot specify lifetime arguments explicitly if late bound lifetime par
   = note: #[warn(late_bound_lifetime_arguments)] on by default
   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
+```
+
+## no-mangle-generic-items
+
+This lint detects generic items must be mangled. Some
+example code that triggers this lint:
+
+```rust
+#[no_mangle]
+fn foo<T>(t: T) {
+
+}
+```
+
+This will produce:
+
+```text
+warning: functions generic over types must be mangled
+ --> src/main.rs:2:1
+  |
+1 |   #[no_mangle]
+  |   ------------ help: remove this attribute
+2 | / fn foo<T>(t: T) {
+3 | |
+4 | | }
+  | |_^
+  |
 ```
 
 ## non-camel-case-types
@@ -255,33 +266,6 @@ warning: static variable `x` should have an upper case name such as `X`
   |
 1 | static x: i32 = 5;
   | ^^^^^^^^^^^^^^^^^^
-  |
-```
-
-## no-mangle-generic-items
-
-This lint detects generic items must be mangled. Some
-example code that triggers this lint:
-
-```rust
-#[no_mangle]
-fn foo<T>(t: T) {
-
-}
-```
-
-This will produce:
-
-```text
-warning: functions generic over types must be mangled
- --> src/main.rs:2:1
-  |
-1 |   #[no_mangle]
-  |   ------------ help: remove this attribute
-2 | / fn foo<T>(t: T) {
-3 | |
-4 | | }
-  | |_^
   |
 ```
 
@@ -411,59 +395,7 @@ error[E0446]: private type `foo::Z` in public interface
    |         ^^^^^^^^^^^ can't leak private type
 ```
 
-## private-no-mangle-fns
-
-This lint detects functions marked `#[no_mangle]` that are also private.
-Given that private functions aren't exposed publicly, and `#[no_mangle]`
-controls the public symbol, this combination is erroneous. Some example code
-that triggers this lint:
-
-```rust
-#[no_mangle]
-fn foo() {}
-```
-
-This will produce:
-
-```text
-warning: function is marked #[no_mangle], but not exported
- --> src/main.rs:2:1
-  |
-2 | fn foo() {}
-  | -^^^^^^^^^^
-  | |
-  | help: try making it public: `pub`
-  |
-```
-
-To fix this, either make it public or remove the `#[no_mangle]`.
-
-## private-no-mangle-statics
-
-This lint detects any statics marked `#[no_mangle]` that are private.
-Given that private statics aren't exposed publicly, and `#[no_mangle]`
-controls the public symbol, this combination is erroneous. Some example code
-that triggers this lint:
-
-```rust
-#[no_mangle]
-static X: i32 = 4;
-```
-
-This will produce:
-
-```text
-warning: static is marked #[no_mangle], but not exported
- --> src/main.rs:2:1
-  |
-2 | static X: i32 = 4;
-  | -^^^^^^^^^^^^^^^^^
-  | |
-  | help: try making it public: `pub`
-  |
-```
-
-To fix this, either make it public or remove the `#[no_mangle]`.
+## proc-macro-derive-resolution-fallback
 
 ## renamed-and-removed-lints
 
@@ -542,6 +474,8 @@ warning: this feature has been stable since 1.0.0. Attribute no longer needed
 ```
 
 To fix, simply remove the `#![feature]` attribute, as it's no longer needed.
+
+## trivial-bounds
 
 ## type-alias-bounds
 
@@ -642,8 +576,8 @@ warning: union contains a field with possibly non-trivial drop code, drop code o
 This lint detects unrecognized lint attribute. Some
 example code that triggers this lint:
 
-```rust,ignore
-#[allow(not_a_real_lint)]
+```rust
+#![allow(not_a_real_lint)]
 ```
 
 This will produce:
@@ -656,6 +590,8 @@ warning: unknown lint: `not_a_real_lint`
   |          ^^^^^^^^^^^^^^^
   |
 ```
+
+## unnameable-test-items
 
 ## unreachable-code
 
@@ -707,7 +643,7 @@ The `y` pattern will always match, so the five is impossible to reach.
 Remember, match arms match in order, you probably wanted to put the `5` case
 above the `y` case.
 
-## unstable-name-collision
+## unstable-name-collisions
 
 This lint detects that you've used a name that the standard library plans to
 add in the future, which means that your code may fail to compile without
@@ -783,7 +719,7 @@ warning: comparison is useless due to type limits
   |
 ```
 
-## unused-doc-comment
+## unused-doc-comments
 
 This lint detects detects doc comments that aren't used by rustdoc. Some
 example code that triggers this lint:
@@ -974,6 +910,8 @@ that would produce a warning to whatever value you'd like:
 ```
 
 As such, you won't ever trigger this lint in your code directly.
+
+## where-clauses-object-safety
 
 ## while-true
 

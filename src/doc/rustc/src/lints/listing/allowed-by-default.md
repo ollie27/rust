@@ -3,6 +3,8 @@
 These lints are all set to the 'allow' level by default. As such, they won't show up
 unless you set them to a higher lint level with a flag or attribute.
 
+## absolute-paths-not-starting-with-crate
+
 ## anonymous-parameters
 
 This lint detects anonymous parameters. Some example code that triggers this lint:
@@ -35,7 +37,7 @@ trait Foo {
 }
 ```
 
-## bare-trait-object
+## bare-trait-objects
 
 This lint suggests using `dyn Trait` for trait objects. Some example code
 that triggers this lint:
@@ -97,7 +99,7 @@ This lint is mostly historical, and not particularly useful. `Box<T>` used to
 be built into the language, and the only way to do heap allocation. Today's
 Rust can call into other allocators, etc.
 
-## elided-lifetime-in-path
+## elided-lifetimes-in-paths
 
 This lint detects the use of hidden lifetime parameters. Some example code
 that triggers this lint:
@@ -123,6 +125,14 @@ error: hidden lifetime parameters are deprecated, try `Foo<'_>`
 ```
 
 Lifetime elision elides this lifetime, but that is being deprecated.
+
+## ellipsis-inclusive-range-patterns
+
+## explicit-outlives-requirements
+
+## keyword-idents
+
+## macro-use-extern-crate
 
 ## missing-copy-implementations
 
@@ -175,6 +185,8 @@ error: type does not implement `fmt::Debug`; consider adding #[derive(Debug)] or
 
 You can fix the lint by deriving `Debug`.
 
+## missing-doc-code-examples
+
 ## missing-docs
 
 This lint detects missing documentation for public items. Some example code
@@ -208,7 +220,9 @@ error: missing documentation for a function
 
 To fix the lint, add documentation to all items.
 
-## single-use-lifetime
+## question-mark-macro-sep
+
+## single-use-lifetimes
 
 This lint detects lifetimes that are only used once. Some example code that
 triggers this lint:
@@ -284,7 +298,7 @@ example code that triggers this lint:
 ```rust
 mod foo {
     pub mod bar {
-        
+
     }
 }
 ```
@@ -321,7 +335,7 @@ error: usage of an `unsafe` block
  --> src/main.rs:4:5
   |
 4 | /     unsafe {
-5 | |         
+5 | |
 6 | |     }
   | |_____^
   |
@@ -377,6 +391,10 @@ error: braces around A is unnecessary
 ```
 
 To fix it, `use test::A;`
+
+## unused-labels
+
+## unused-lifetimes
 
 ## unused-qualifications
 
