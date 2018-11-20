@@ -2,6 +2,7 @@
 members = [
   "bootstrap",
   "rustc",
+  "libcore",
   "libstd",
   "libtest",
   "librustc_codegen_llvm",

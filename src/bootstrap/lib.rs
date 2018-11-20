@@ -327,6 +327,8 @@ impl Crate {
 /// build system, with each mod generating output in a different directory.
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Mode {
+    Core,
+
     /// Build the standard library, placing output in the "stageN-std" directory.
     Std,
 
@@ -555,6 +557,7 @@ impl Build {
     /// The mode indicates what the root directory is for.
     fn stage_out(&self, compiler: Compiler, mode: Mode) -> PathBuf {
         let suffix = match mode {
+            Mode::Core => "-core",
             Mode::Std => "-std",
             Mode::Test => "-test",
             Mode::Rustc => "-rustc",

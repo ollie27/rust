@@ -342,6 +342,7 @@ impl<'a> Builder<'a> {
         }
         match kind {
             Kind::Build => describe!(
+                compile::Core,
                 compile::Std,
                 compile::Test,
                 compile::Rustc,
@@ -368,6 +369,7 @@ impl<'a> Builder<'a> {
                 native::Lld
             ),
             Kind::Check => describe!(
+                check::Core,
                 check::Std,
                 check::Test,
                 check::Rustc,
@@ -727,6 +729,11 @@ impl<'a> Builder<'a> {
             compiler
         };
 
+        let libcore_stamp = match cmd {
+            "check" => check::libcore_stamp(self, cmp, target),
+            _ => compile::libcore_stamp(self, cmp, target),
+        };
+
         let libstd_stamp = match cmd {
             "check" => check::libstd_stamp(self, cmp, target),
             _ => compile::libstd_stamp(self, cmp, target),
@@ -751,8 +758,11 @@ impl<'a> Builder<'a> {
             self.clear_if_dirty(&my_out, &rustdoc);
         } else if cmd != "test" {
             match mode {
-                Mode::Std => {
+                Mode::Core => {
                     self.clear_if_dirty(&my_out, &self.rustc(compiler));
+                }
+                Mode::Std => {
+                    self.clear_if_dirty(&my_out, &libcore_stamp);
                 },
                 Mode::Test => {
                     self.clear_if_dirty(&my_out, &libstd_stamp);

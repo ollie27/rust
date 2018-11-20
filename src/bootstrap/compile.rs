@@ -37,6 +37,119 @@ use cache::{INTERNER, Interned};
 use builder::{Step, RunConfig, ShouldRun, Builder};
 
 #[derive(Debug, PartialOrd, Ord, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct Core {
+    pub target: Interned<String>,
+    pub compiler: Compiler,
+}
+
+impl Step for Core {
+    type Output = ();
+    const DEFAULT: bool = true;
+
+    fn should_run(run: ShouldRun) -> ShouldRun {
+        run.all_krates("core")
+    }
+
+    fn make_run(run: RunConfig) {
+        run.builder.ensure(Core {
+            compiler: run.builder.compiler(run.builder.top_stage, run.host),
+            target: run.target,
+        });
+    }
+
+    fn run(self, builder: &Builder) {
+        let target = self.target;
+        let compiler = self.compiler;
+
+        if builder.config.keep_stage.contains(&compiler.stage) {
+            builder.info("Warning: Using a potentially old libcore. This may not behave well.");
+            builder.ensure(CoreLink {
+                compiler,
+                target_compiler: compiler,
+                target,
+            });
+            return;
+        }
+
+        builder.ensure(StartupObjects { compiler, target });
+
+        if builder.force_use_stage1(compiler, target) {
+            let from = builder.compiler(1, builder.config.build);
+            builder.ensure(Core {
+                compiler: from,
+                target,
+            });
+            builder.info(&format!("Uplifting stage1 core ({} -> {})", from.host, target));
+
+            builder.ensure(CoreLink {
+                compiler: from,
+                target_compiler: compiler,
+                target,
+            });
+            return;
+        }
+
+        let mut cargo = builder.cargo(compiler, Mode::Core, target, "build");
+        core_cargo(builder, &compiler, target, &mut cargo);
+
+        let _folder = builder.fold_output(|| format!("stage{}-core", compiler.stage));
+        builder.info(&format!("Building stage{} core artifacts ({} -> {})", compiler.stage,
+                &compiler.host, target));
+        run_cargo(builder,
+                  &mut cargo,
+                  vec![],
+                  &libcore_stamp(builder, compiler, target),
+                  false);
+
+        builder.ensure(CoreLink {
+            compiler: builder.compiler(compiler.stage, builder.config.build),
+            target_compiler: compiler,
+            target,
+        });
+    }
+}
+
+pub fn core_cargo(builder: &Builder,
+                 _compiler: &Compiler,
+                 _target: Interned<String>,
+                 cargo: &mut Command) {
+
+    cargo.arg("--manifest-path")
+        .arg(builder.src.join("src/libcore/Cargo.toml"));
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+struct CoreLink {
+    pub compiler: Compiler,
+    pub target_compiler: Compiler,
+    pub target: Interned<String>,
+}
+
+impl Step for CoreLink {
+    type Output = ();
+
+    fn should_run(run: ShouldRun) -> ShouldRun {
+        run.never()
+    }
+
+    fn run(self, builder: &Builder) {
+        let compiler = self.compiler;
+        let target_compiler = self.target_compiler;
+        let target = self.target;
+        builder.info(&format!("Copying stage{} core from stage{} ({} -> {} / {})",
+                target_compiler.stage,
+                compiler.stage,
+                &compiler.host,
+                target_compiler.host,
+                target));
+        let libdir = builder.sysroot_libdir(target_compiler, target);
+        add_to_sysroot(builder, &libdir, &libcore_stamp(builder, compiler, target));
+
+        builder.cargo(target_compiler, Mode::ToolStd, target, "clean");
+    }
+}
+
+#[derive(Debug, PartialOrd, Ord, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Std {
     pub target: Interned<String>,
     pub compiler: Compiler,
@@ -65,6 +178,8 @@ impl Step for Std {
     fn run(self, builder: &Builder) {
         let target = self.target;
         let compiler = self.compiler;
+
+        builder.ensure(Core { compiler, target });
 
         if builder.config.keep_stage.contains(&compiler.stage) {
             builder.info("Warning: Using a potentially old libstd. This may not behave well.");
@@ -829,6 +944,10 @@ fn copy_lld_to_sysroot(builder: &Builder,
     // we prepend this bin directory to the user PATH when linking Rust binaries. To
     // avoid shadowing the system LLD we rename the LLD we provide to `rust-lld`.
     builder.copy(&lld_install_root.join("bin").join(&src_exe), &dst.join(&dst_exe));
+}
+
+pub fn libcore_stamp(builder: &Builder, compiler: Compiler, target: Interned<String>) -> PathBuf {
+    builder.cargo_out(compiler, Mode::Core, target).join(".libcore.stamp")
 }
 
 /// Cargo's output path for the standard library in a given stage, compiled

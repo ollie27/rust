@@ -10,12 +10,51 @@
 
 //! Implementation of compiling the compiler and standard library, in "check" mode.
 
-use compile::{run_cargo, std_cargo, test_cargo, rustc_cargo, rustc_cargo_env, add_to_sysroot};
+use compile::{run_cargo, core_cargo, std_cargo, test_cargo, rustc_cargo, rustc_cargo_env, add_to_sysroot};
 use builder::{RunConfig, Builder, ShouldRun, Step};
 use tool::{prepare_tool_cargo, SourceType};
 use {Compiler, Mode};
 use cache::{INTERNER, Interned};
 use std::path::PathBuf;
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct Core {
+    pub target: Interned<String>,
+}
+
+impl Step for Core {
+    type Output = ();
+    const DEFAULT: bool = true;
+
+    fn should_run(run: ShouldRun) -> ShouldRun {
+        run.all_krates("core")
+    }
+
+    fn make_run(run: RunConfig) {
+        run.builder.ensure(Core {
+            target: run.target,
+        });
+    }
+
+    fn run(self, builder: &Builder) {
+        let target = self.target;
+        let compiler = builder.compiler(0, builder.config.build);
+
+        let mut cargo = builder.cargo(compiler, Mode::Core, target, "check");
+        core_cargo(builder, &compiler, target, &mut cargo);
+
+        let _folder = builder.fold_output(|| format!("stage{}-core", compiler.stage));
+        builder.info(&format!("Checking core artifacts ({} -> {})", &compiler.host, target));
+        run_cargo(builder,
+                  &mut cargo,
+                  vec![],
+                  &libcore_stamp(builder, compiler, target),
+                  true);
+
+        let libdir = builder.sysroot_libdir(compiler, target);
+        add_to_sysroot(&builder, &libdir, &libcore_stamp(builder, compiler, target));
+    }
+}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Std {
@@ -39,6 +78,8 @@ impl Step for Std {
     fn run(self, builder: &Builder) {
         let target = self.target;
         let compiler = builder.compiler(0, builder.config.build);
+
+        builder.ensure(Core { target });
 
         let mut cargo = builder.cargo(compiler, Mode::Std, target, "check");
         std_cargo(builder, &compiler, target, &mut cargo);
@@ -239,6 +280,10 @@ impl Step for Rustdoc {
         add_to_sysroot(&builder, &libdir, &rustdoc_stamp(builder, compiler, target));
         builder.cargo(compiler, Mode::ToolRustc, target, "clean");
     }
+}
+
+pub fn libcore_stamp(builder: &Builder, compiler: Compiler, target: Interned<String>) -> PathBuf {
+    builder.cargo_out(compiler, Mode::Core, target).join(".libcore-check.stamp")
 }
 
 /// Cargo's output path for the standard library in a given stage, compiled
