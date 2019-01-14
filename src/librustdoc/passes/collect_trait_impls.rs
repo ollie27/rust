@@ -32,6 +32,15 @@ pub fn collect_trait_impls(krate: Crate, cx: &DocContext) -> Crate {
         }
     }
 
+    // `tcx.crates()` doesn't include the local crate, and `tcx.all_trait_implementations`
+    // doesn't work with it anyway, so pull them from the HIR map instead
+    for &trait_did in cx.all_traits.iter() {
+        for &impl_node in cx.tcx.hir().trait_impls(trait_did) {
+            let impl_did = cx.tcx.hir().local_def_id(impl_node);
+            inline::build_impl(cx, impl_did, &mut new_items);
+        }
+    }
+
     // Also try to inline primitive impls from other crates.
     let lang_items = cx.tcx.lang_items();
     let primitive_impls = [
@@ -106,22 +115,14 @@ pub fn collect_trait_impls(krate: Crate, cx: &DocContext) -> Crate {
 
     new_items.retain(|it| {
         if let ImplItem(Impl { ref for_, ref trait_, ref blanket_impl, .. }) = it.inner {
-            cleaner.keep_item(for_) ||
+            it.def_id.is_local() ||
+                cleaner.keep_item(for_) ||
                 trait_.as_ref().map_or(false, |t| cleaner.keep_item(t)) ||
                 blanket_impl.is_some()
         } else {
             true
         }
     });
-
-    // `tcx.crates()` doesn't include the local crate, and `tcx.all_trait_implementations`
-    // doesn't work with it anyway, so pull them from the HIR map instead
-    for &trait_did in cx.all_traits.iter() {
-        for &impl_node in cx.tcx.hir().trait_impls(trait_did) {
-            let impl_did = cx.tcx.hir().local_def_id(impl_node);
-            inline::build_impl(cx, impl_did, &mut new_items);
-        }
-    }
 
     if let Some(ref mut it) = krate.module {
         if let ModuleItem(Module { ref mut items, .. }) = it.inner {
