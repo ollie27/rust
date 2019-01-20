@@ -2490,7 +2490,7 @@ fn document(w: &mut fmt::Formatter, cx: &Context, item: &clean::Item) -> fmt::Re
         info!("Documenting {}", name);
     }
     document_stability(w, cx, item, false)?;
-    document_full(w, item, cx, "", false)?;
+    document_full(w, item, cx, false)?;
     Ok(())
 }
 
@@ -2499,19 +2499,17 @@ fn render_markdown(w: &mut fmt::Formatter,
                    cx: &Context,
                    md_text: &str,
                    links: Vec<(String, String)>,
-                   prefix: &str,
                    is_hidden: bool)
                    -> fmt::Result {
     let mut ids = cx.id_map.borrow_mut();
-    write!(w, "<div class='docblock{}'>{}{}</div>",
+    write!(w, "<div class='docblock{}'>{}</div>",
            if is_hidden { " hidden" } else { "" },
-           prefix,
            Markdown(md_text, &links, RefCell::new(&mut ids),
            cx.codes))
 }
 
 fn document_short(w: &mut fmt::Formatter, cx: &Context, item: &clean::Item, link: AssocItemLink,
-                  prefix: &str, is_hidden: bool) -> fmt::Result {
+                  is_hidden: bool) -> fmt::Result {
     if let Some(s) = item.doc_value() {
         let markdown = if s.contains('\n') {
             format!("{} [Read more]({})",
@@ -2519,24 +2517,16 @@ fn document_short(w: &mut fmt::Formatter, cx: &Context, item: &clean::Item, link
         } else {
             plain_summary_line(Some(s))
         };
-        render_markdown(w, cx, &markdown, item.links(), prefix, is_hidden)?;
-    } else if !prefix.is_empty() {
-        write!(w, "<div class='docblock{}'>{}</div>",
-               if is_hidden { " hidden" } else { "" },
-               prefix)?;
+        render_markdown(w, cx, &markdown, item.links(), is_hidden)?;
     }
     Ok(())
 }
 
 fn document_full(w: &mut fmt::Formatter, item: &clean::Item,
-                 cx: &Context, prefix: &str, is_hidden: bool) -> fmt::Result {
+                 cx: &Context, is_hidden: bool) -> fmt::Result {
     if let Some(s) = cx.shared.maybe_collapsed_doc_value(item) {
         debug!("Doc block: =====\n{}\n=====", s);
-        render_markdown(w, cx, &*s, item.links(), prefix, is_hidden)?;
-    } else if !prefix.is_empty() {
-        write!(w, "<div class='docblock{}'>{}</div>",
-               if is_hidden { " hidden" } else { "" },
-               prefix)?;
+        render_markdown(w, cx, &*s, item.links(), is_hidden)?;
     }
     Ok(())
 }
@@ -3305,7 +3295,6 @@ fn naive_assoc_href(it: &clean::Item, link: AssocItemLink) -> String {
 fn assoc_const(w: &mut fmt::Formatter,
                it: &clean::Item,
                ty: &clean::Type,
-               _default: Option<&String>,
                link: AssocItemLink) -> fmt::Result {
     write!(w, "{}const <a href='{}' class=\"constant\"><b>{}</b></a>: {}",
            VisSpace(&it.visibility),
@@ -3423,8 +3412,8 @@ fn render_assoc_item(w: &mut fmt::Formatter,
         clean::MethodItem(ref m) => {
             method(w, item, m.header, &m.generics, &m.decl, link, parent)
         }
-        clean::AssociatedConstItem(ref ty, ref default) => {
-            assoc_const(w, item, ty, default.as_ref(), link)
+        clean::AssociatedConstItem(ref ty) => {
+            assoc_const(w, item, ty, link)
         }
         clean::AssociatedTypeItem(ref bounds, ref default) => {
             assoc_type(w, item, bounds, default.as_ref(), link)
@@ -4152,12 +4141,12 @@ fn render_impl(w: &mut fmt::Formatter, cx: &Context, i: &Impl, link: AssocItemLi
                 assoc_type(w, item, &Vec::new(), Some(&tydef.type_), link.anchor(&id))?;
                 write!(w, "</code></h4>")?;
             }
-            clean::AssociatedConstItem(ref ty, ref default) => {
+            clean::AssociatedConstItem(ref ty) => {
                 let id = cx.derive_id(format!("{}.{}", item_type, name));
                 let ns_id = cx.derive_id(format!("{}.{}", name, item_type.name_space()));
                 write!(w, "<h4 id='{}' class=\"{}{}\">", id, item_type, extra_class)?;
                 write!(w, "<code id='{}'>", ns_id)?;
-                assoc_const(w, item, ty, default.as_ref(), link.anchor(&id))?;
+                assoc_const(w, item, ty, link.anchor(&id))?;
                 write!(w, "</code>")?;
                 render_stability_since_raw(w, item.stable_since(), outer_version)?;
                 if let Some(l) = (Item { cx, item }).src_href() {
@@ -4188,23 +4177,23 @@ fn render_impl(w: &mut fmt::Formatter, cx: &Context, i: &Impl, link: AssocItemLi
                         // because impls can't have a stability.
                         document_stability(w, cx, it, is_hidden)?;
                         if item.doc_value().is_some() {
-                            document_full(w, item, cx, "", is_hidden)?;
+                            document_full(w, item, cx, is_hidden)?;
                         } else if show_def_docs {
                             // In case the item isn't documented,
                             // provide short documentation from the trait.
-                            document_short(w, cx, it, link, "", is_hidden)?;
+                            document_short(w, cx, it, link, is_hidden)?;
                         }
                     }
                 } else {
                     document_stability(w, cx, item, is_hidden)?;
                     if show_def_docs {
-                        document_full(w, item, cx, "", is_hidden)?;
+                        document_full(w, item, cx, is_hidden)?;
                     }
                 }
             } else {
                 document_stability(w, cx, item, is_hidden)?;
                 if show_def_docs {
-                    document_short(w, cx, item, link, "", is_hidden)?;
+                    document_short(w, cx, item, link, is_hidden)?;
                 }
             }
         }

@@ -496,11 +496,10 @@ impl<'a, 'tcx, 'rcx> RustdocVisitor<'a, 'tcx, 'rcx> {
                 };
                 om.existentials.push(t);
             },
-            hir::ItemKind::Static(ref ty, ref mut_, ref exp) => {
+            hir::ItemKind::Static(ref ty, ref mut_, ..) => {
                 let s = Static {
                     type_: ty.clone(),
                     mutability: mut_.clone(),
-                    expr: exp.clone(),
                     id: item.id,
                     name: ident.name,
                     attrs: item.attrs.clone(),
@@ -511,10 +510,9 @@ impl<'a, 'tcx, 'rcx> RustdocVisitor<'a, 'tcx, 'rcx> {
                 };
                 om.statics.push(s);
             },
-            hir::ItemKind::Const(ref ty, ref exp) => {
+            hir::ItemKind::Const(ref ty, ..) => {
                 let s = Constant {
                     type_: ty.clone(),
-                    expr: exp.clone(),
                     id: item.id,
                     name: ident.name,
                     attrs: item.attrs.clone(),

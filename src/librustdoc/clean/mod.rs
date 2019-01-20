@@ -534,7 +534,7 @@ pub enum ItemEnum {
     MacroItem(Macro),
     ProcMacroItem(ProcMacro),
     PrimitiveItem(PrimitiveType),
-    AssociatedConstItem(Type, Option<String>),
+    AssociatedConstItem(Type),
     AssociatedTypeItem(Vec<GenericBound>, Option<Type>),
     /// An item that has been stripped by a rustdoc pass
     StrippedItem(Box<ItemEnum>),
@@ -1902,9 +1902,8 @@ impl Clean<PolyTrait> for hir::PolyTraitRef {
 impl Clean<Item> for hir::TraitItem {
     fn clean(&self, cx: &DocContext) -> Item {
         let inner = match self.node {
-            hir::TraitItemKind::Const(ref ty, default) => {
-                AssociatedConstItem(ty.clean(cx),
-                                    default.map(|e| print_const_expr(cx, e)))
+            hir::TraitItemKind::Const(ref ty, ..) => {
+                AssociatedConstItem(ty.clean(cx))
             }
             hir::TraitItemKind::Method(ref sig, hir::TraitMethod::Provided(body)) => {
                 MethodItem((sig, &self.generics, body).clean(cx))
@@ -1939,9 +1938,8 @@ impl Clean<Item> for hir::TraitItem {
 impl Clean<Item> for hir::ImplItem {
     fn clean(&self, cx: &DocContext) -> Item {
         let inner = match self.node {
-            hir::ImplItemKind::Const(ref ty, expr) => {
-                AssociatedConstItem(ty.clean(cx),
-                                    Some(print_const_expr(cx, expr)))
+            hir::ImplItemKind::Const(ref ty, ..) => {
+                AssociatedConstItem(ty.clean(cx))
             }
             hir::ImplItemKind::Method(ref sig, body) => {
                 MethodItem((sig, &self.generics, body).clean(cx))
@@ -1973,12 +1971,7 @@ impl<'tcx> Clean<Item> for ty::AssociatedItem {
         let inner = match self.kind {
             ty::AssociatedKind::Const => {
                 let ty = cx.tcx.type_of(self.def_id);
-                let default = if self.defaultness.has_value() {
-                    Some(inline::print_inlined_const(cx, self.def_id))
-                } else {
-                    None
-                };
-                AssociatedConstItem(ty.clean(cx), default)
+                AssociatedConstItem(ty.clean(cx))
             }
             ty::AssociatedKind::Method => {
                 let generics = (cx.tcx.generics_of(self.def_id),
@@ -3285,10 +3278,6 @@ impl Clean<BareFunctionDecl> for hir::BareFnTy {
 pub struct Static {
     pub type_: Type,
     pub mutability: Mutability,
-    /// It's useful to have the value of a static documented, but I have no
-    /// desire to represent expressions (that'd basically be all of the AST,
-    /// which is huge!). So, have a string.
-    pub expr: String,
 }
 
 impl Clean<Item> for doctree::Static {
@@ -3305,7 +3294,6 @@ impl Clean<Item> for doctree::Static {
             inner: StaticItem(Static {
                 type_: self.type_.clean(cx),
                 mutability: self.mutability.clean(cx),
-                expr: print_const_expr(cx, self.expr),
             }),
         }
     }
@@ -3314,7 +3302,6 @@ impl Clean<Item> for doctree::Static {
 #[derive(Clone, Debug)]
 pub struct Constant {
     pub type_: Type,
-    pub expr: String,
 }
 
 impl Clean<Item> for doctree::Constant {
@@ -3329,7 +3316,6 @@ impl Clean<Item> for doctree::Constant {
             deprecation: self.depr.clean(cx),
             inner: ConstantItem(Constant {
                 type_: self.type_.clean(cx),
-                expr: print_const_expr(cx, self.expr),
             }),
         }
     }
@@ -3644,7 +3630,6 @@ impl Clean<Item> for hir::ForeignItem {
                 ForeignStaticItem(Static {
                     type_: ty.clean(cx),
                     mutability: if mutbl {Mutable} else {Immutable},
-                    expr: String::new(),
                 })
             }
             hir::ForeignItemKind::Type => {
@@ -3723,9 +3708,9 @@ fn print_const(cx: &DocContext, n: ty::LazyConst) -> String {
     match n {
         ty::LazyConst::Unevaluated(def_id, _) => {
             if let Some(node_id) = cx.tcx.hir().as_local_node_id(def_id) {
-                print_const_expr(cx, cx.tcx.hir().body_owned_by(node_id))
+                cx.tcx.hir().node_to_pretty_string(node_id)
             } else {
-                inline::print_inlined_const(cx, def_id)
+                cx.tcx.rendered_const(def_id)
             }
         },
         ty::LazyConst::Evaluated(n) => {
@@ -3739,10 +3724,6 @@ fn print_const(cx: &DocContext, n: ty::LazyConst) -> String {
             s
         },
     }
-}
-
-fn print_const_expr(cx: &DocContext, body: hir::BodyId) -> String {
-    cx.tcx.hir().node_to_pretty_string(body.node_id)
 }
 
 /// Given a type Path, resolve it to a Type using the TyCtxt

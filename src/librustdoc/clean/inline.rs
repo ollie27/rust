@@ -409,18 +409,9 @@ fn build_module(cx: &DocContext, did: DefId, visited: &mut FxHashSet<DefId>) -> 
     }
 }
 
-pub fn print_inlined_const(cx: &DocContext, did: DefId) -> String {
-    if let Some(node_id) = cx.tcx.hir().as_local_node_id(did) {
-        cx.tcx.hir().node_to_pretty_string(node_id)
-    } else {
-        cx.tcx.rendered_const(did)
-    }
-}
-
 fn build_const(cx: &DocContext, did: DefId) -> clean::Constant {
     clean::Constant {
         type_: cx.tcx.type_of(did).clean(cx),
-        expr: print_inlined_const(cx, did)
     }
 }
 
@@ -428,7 +419,6 @@ fn build_static(cx: &DocContext, did: DefId, mutable: bool) -> clean::Static {
     clean::Static {
         type_: cx.tcx.type_of(did).clean(cx),
         mutability: if mutable {clean::Mutable} else {clean::Immutable},
-        expr: "\n\n\n".to_string(), // trigger the "[definition]" links
     }
 }
 
