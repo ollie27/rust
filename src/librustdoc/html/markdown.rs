@@ -795,10 +795,6 @@ impl<'a> fmt::Display for MarkdownSummaryLine<'a> {
     }
 }
 
-pub fn plain_summary_line(md: &str) -> String {
-    plain_summary_line_full(md, false)
-}
-
 pub fn plain_summary_line_full(md: &str, limit_length: bool) -> String {
     struct ParserWrapper<'a> {
         inner: Parser<'a>,

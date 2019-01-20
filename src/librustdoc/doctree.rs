@@ -73,7 +73,7 @@ impl Module {
     }
 }
 
-#[derive(Debug, Clone, RustcEncodable, RustcDecodable, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum StructType {
     /// A braced struct
     Plain,
@@ -249,7 +249,6 @@ pub struct ExternCrate {
 
 pub struct Import {
     pub name: Name,
-    pub id: NodeId,
     pub vis: hir::Visibility,
     pub attrs: hir::HirVec<ast::Attribute>,
     pub path: hir::Path,

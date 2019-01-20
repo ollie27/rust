@@ -19,7 +19,6 @@
 
 #![recursion_limit="256"]
 
-extern crate arena;
 extern crate getopts;
 extern crate env_logger;
 extern crate rustc;
@@ -41,8 +40,6 @@ extern crate pulldown_cmark;
 extern crate tempfile;
 extern crate minifier;
 extern crate parking_lot;
-
-extern crate serialize as rustc_serialize; // used by deriving
 
 use std::default::Default;
 use std::env;

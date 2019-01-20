@@ -446,7 +446,6 @@ impl<'a, 'tcx, 'rcx> RustdocVisitor<'a, 'tcx, 'rcx> {
 
                 om.imports.push(Import {
                     name: ident.name,
-                    id: item.id,
                     vis: item.vis.clone(),
                     attrs: item.attrs.clone(),
                     path: (**path).clone(),

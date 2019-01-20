@@ -40,8 +40,7 @@ use clean::{get_path_for_type, Clean, MAX_DEF_ID, AttributesExt};
 use html::render::RenderInfo;
 use passes;
 
-pub use rustc::session::config::{Input, Options, CodegenOptions};
-pub use rustc::session::search_paths::SearchPath;
+pub use rustc::session::config::{Input, Options};
 
 pub type ExternalPaths = FxHashMap<DefId, (Vec<String>, clean::TypeKind)>;
 
