@@ -16,6 +16,7 @@ use std::collections::BTreeMap;
 
 use rustc::hir::def_id::DefId;
 use rustc::ty;
+use rustc::util::nodemap::FxHashMap;
 
 use crate::clean::GenericArgs as PP;
 use crate::clean::WherePredicate as WP;
@@ -25,7 +26,7 @@ use crate::core::DocContext;
 pub fn where_clauses(cx: &DocContext<'_>, clauses: Vec<WP>) -> Vec<WP> {
     // First, partition the where clause into its separate components
     let mut params: BTreeMap<_, Vec<_>> = BTreeMap::new();
-    let mut lifetimes = Vec::new();
+    let mut lifetimes: FxHashMap<_, Vec<_>> = FxHashMap::default();
     let mut equalities = Vec::new();
     let mut tybounds = Vec::new();
 
@@ -39,7 +40,7 @@ pub fn where_clauses(cx: &DocContext<'_>, clauses: Vec<WP>) -> Vec<WP> {
                 }
             }
             WP::RegionPredicate { lifetime, bounds } => {
-                lifetimes.push((lifetime, bounds));
+                lifetimes.entry(lifetime).or_default().extend(bounds);
             }
             WP::EqPredicate { lhs, rhs } => equalities.push((lhs, rhs)),
         }
@@ -108,7 +109,7 @@ pub fn where_clauses(cx: &DocContext<'_>, clauses: Vec<WP>) -> Vec<WP> {
     // And finally, let's reassemble everything
     let mut clauses = Vec::new();
     clauses.extend(lifetimes.into_iter().map(|(lt, bounds)| {
-        WP::RegionPredicate { lifetime: lt, bounds: bounds }
+        WP::RegionPredicate { lifetime: lt, bounds: ty_bounds(bounds) }
     }));
     clauses.extend(params.into_iter().map(|(k, v)| {
         WP::BoundPredicate {
@@ -138,7 +139,13 @@ pub fn ty_params(mut params: Vec<clean::GenericParamDef>) -> Vec<clean::GenericP
 }
 
 fn ty_bounds(bounds: Vec<clean::GenericBound>) -> Vec<clean::GenericBound> {
-    bounds
+    let mut new_bounds = Vec::new();
+    for bound in bounds {
+        if !new_bounds.contains(&bound) {
+            new_bounds.push(bound);
+        }
+    }
+    new_bounds
 }
 
 fn trait_is_same_or_supertrait(cx: &DocContext<'_>, child: DefId,

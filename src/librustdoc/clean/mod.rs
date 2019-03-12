@@ -1374,11 +1374,9 @@ impl<'tcx> Clean<Option<WherePredicate>> for
     fn clean(&self, cx: &DocContext<'_>) -> Option<WherePredicate> {
         let ty::OutlivesPredicate(ref a, ref b) = *self;
 
-        match (a, b) {
-            (ty::ReEmpty, ty::ReEmpty) => {
-                return None;
-            },
-            _ => {}
+        // Cross crate inlining can result in redundant bounds.
+        if a == b {
+            return None;
         }
 
         Some(WherePredicate::RegionPredicate {
