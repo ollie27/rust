@@ -127,8 +127,8 @@ pub enum CheckLintNameResult<'a> {
     /// Lint doesn't exist. Potentially contains a suggestion for a correct lint name.
     NoLint(Option<Symbol>),
     /// The lint is either renamed or removed. This is the warning
-    /// message, and an optional new name (`None` if removed).
-    Warning(String, Option<String>),
+    /// message, and an optional new name and id (`None` if removed).
+    Warning(String, Option<(String, LintId)>),
     /// The lint is from a tool. If the Option is None, then either
     /// the lint does not exist in the tool or the code was not
     /// compiled with the tool and therefore the lint was never
@@ -427,12 +427,12 @@ impl LintStore {
             }
         }
         match self.by_name.get(&complete_name) {
-            Some(&Renamed(ref new_name, _)) => CheckLintNameResult::Warning(
+            Some(&Renamed(ref new_name, new_id)) => CheckLintNameResult::Warning(
                 format!(
                     "lint `{}` has been renamed to `{}`",
                     complete_name, new_name
                 ),
-                Some(new_name.to_owned()),
+                Some((new_name.to_owned(), new_id)),
             ),
             Some(&Removed(ref reason)) => CheckLintNameResult::Warning(
                 format!("lint `{}` has been removed: `{}`", complete_name, reason),

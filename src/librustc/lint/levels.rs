@@ -352,6 +352,10 @@ impl<'a> LintLevelsBuilder<'a> {
                     _ if !self.warn_about_weird_lints => {}
 
                     CheckLintNameResult::Warning(msg, renamed) => {
+                        if let Some((_, new_id)) = renamed {
+                            let src = LintSource::Node(name, li.span(), reason);
+                            specs.insert(new_id, (level, src));
+                        }
                         let lint = builtin::RENAMED_AND_REMOVED_LINTS;
                         let (level, src) = self.sets.get_lint_level(lint,
                                                                     self.cur,
@@ -363,7 +367,7 @@ impl<'a> LintLevelsBuilder<'a> {
                                                               src,
                                                               Some(li.span().into()),
                                                               &msg);
-                        if let Some(new_name) = renamed {
+                        if let Some((new_name, _)) = renamed {
                             err.span_suggestion(
                                 li.span(),
                                 "use the new name",
