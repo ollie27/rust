@@ -4302,8 +4302,10 @@ fn render_impl(w: &mut fmt::Formatter<'_>, cx: &Context, i: &Impl, link: AssocIt
 
     write!(w, "<div class='impl-items'>")?;
     for trait_item in &i.inner_impl().items {
-        doc_impl_item(w, cx, trait_item, link, render_mode,
-                      false, outer_version, trait_, show_def_docs)?;
+        if use_absolute.is_none() || trait_item.doc_value().is_some() || trait_item.inner.is_associated() {
+            doc_impl_item(w, cx, trait_item, link, render_mode,
+                        false, outer_version, trait_, show_def_docs)?;
+        }
     }
 
     fn render_default_items(w: &mut fmt::Formatter<'_>,
@@ -4330,8 +4332,10 @@ fn render_impl(w: &mut fmt::Formatter<'_>, cx: &Context, i: &Impl, link: AssocIt
     // If we've implemented a trait, then also emit documentation for all
     // default items which weren't overridden in the implementation block.
     if let Some(t) = trait_ {
-        render_default_items(w, cx, t, &i.inner_impl(),
-                             render_mode, outer_version, show_def_docs)?;
+        if use_absolute.is_none() {
+            render_default_items(w, cx, t, &i.inner_impl(),
+                                render_mode, outer_version, show_def_docs)?;
+        }
     }
     write!(w, "</div>")?;
 
