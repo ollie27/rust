@@ -18,8 +18,8 @@ use rustc::middle::resolve_lifetime as rl;
 use rustc::middle::lang_items;
 use rustc::middle::stability;
 use rustc::mir::interpret::{GlobalId, ConstValue};
-use rustc::hir::{self, HirVec};
-use rustc::hir::def::{self, Def, CtorKind};
+use rustc::hir;
+use rustc::hir::def::{Def, CtorKind};
 use rustc::hir::def_id::{CrateNum, DefId, CRATE_DEF_INDEX, LOCAL_CRATE};
 use rustc::ty::subst::{InternalSubsts, SubstsRef, UnpackedKind};
 use rustc::ty::{self, DefIdTree, TyCtxt, Region, RegionVid, Ty, AdtKind};
@@ -4368,72 +4368,6 @@ where
     *cx.impl_trait_bounds.borrow_mut() = old_bounds;
     r
 }
-
-// Start of code copied from rust-clippy
-
-pub fn path_to_def_local(tcx: TyCtxt<'_, '_, '_>, path: &[&str]) -> Option<DefId> {
-    let krate = tcx.hir().krate();
-    let mut items = krate.module.item_ids.clone();
-    let mut path_it = path.iter().peekable();
-
-    loop {
-        let segment = path_it.next()?;
-
-        for item_id in mem::replace(&mut items, HirVec::new()).iter() {
-            let item = tcx.hir().expect_item_by_hir_id(item_id.id);
-            if item.ident.name == *segment {
-                if path_it.peek().is_none() {
-                    return Some(tcx.hir().local_def_id_from_hir_id(item_id.id))
-                }
-
-                items = match &item.node {
-                    &hir::ItemKind::Mod(ref m) => m.item_ids.clone(),
-                    _ => panic!("Unexpected item {:?} in path {:?} path")
-                };
-                break;
-            }
-        }
-    }
-}
-
-pub fn path_to_def(tcx: TyCtxt<'_, '_, '_>, path: &[&str]) -> Option<DefId> {
-    let crates = tcx.crates();
-
-    let krate = crates
-        .iter()
-        .find(|&&krate| tcx.crate_name(krate) == path[0]);
-
-    if let Some(krate) = krate {
-        let krate = DefId {
-            krate: *krate,
-            index: CRATE_DEF_INDEX,
-        };
-        let mut items = tcx.item_children(krate);
-        let mut path_it = path.iter().skip(1).peekable();
-
-        loop {
-            let segment = path_it.next()?;
-
-            for item in mem::replace(&mut items, Lrc::new(vec![])).iter() {
-                if item.ident.name == *segment {
-                    if path_it.peek().is_none() {
-                        return match item.def {
-                            def::Def::Trait(did) => Some(did),
-                            _ => None,
-                        }
-                    }
-
-                    items = tcx.item_children(item.def.def_id());
-                    break;
-                }
-            }
-        }
-    } else {
-        None
-    }
-}
-
-// End of code copied from rust-clippy
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
 enum RegionTarget<'tcx> {
