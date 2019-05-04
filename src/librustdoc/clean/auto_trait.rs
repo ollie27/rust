@@ -3,6 +3,8 @@ use rustc::traits::auto_trait::{self, AutoTraitResult};
 use rustc::ty::{self, TypeFoldable};
 use std::fmt::Debug;
 
+use crate::core::DocAccessLevels;
+
 use super::*;
 
 pub struct AutoTraitFinder<'a, 'tcx> {
@@ -42,6 +44,9 @@ impl<'a, 'tcx> AutoTraitFinder<'a, 'tcx> {
                     "get_auto_trait_impl_for({:?}): already generated, aborting",
                     trait_ref
                 );
+                return None;
+            }
+            if !self.cx.renderinfo.borrow().access_levels.is_doc_reachable(trait_def_id) {
                 return None;
             }
 
@@ -114,6 +119,9 @@ impl<'a, 'tcx> AutoTraitFinder<'a, 'tcx> {
             };
 
             self.cx.generated_synthetics.borrow_mut().insert((ty, trait_def_id));
+
+            // FIXME: Move calls to record_extern_trait to one place so it can't be forgotten.
+            inline::record_extern_trait(self.cx, trait_def_id);
 
             Some(Item {
                 source: Span::empty(),
