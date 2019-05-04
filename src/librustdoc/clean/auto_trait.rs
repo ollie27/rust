@@ -86,11 +86,11 @@ impl<'a, 'tcx> AutoTraitFinder<'a, 'tcx> {
             let polarity;
             let new_generics = match result {
                 AutoTraitResult::PositiveImpl(new_generics) => {
-                    polarity = None;
+                    polarity = ImplPolarity::Positive;
                     new_generics
                 }
                 AutoTraitResult::NegativeImpl => {
-                    polarity = Some(ImplPolarity::Negative);
+                    polarity = ImplPolarity::Negative;
 
                     // For negative impls, we use the generic params, but *not* the predicates,
                     // from the original type. Otherwise, the displayed impl appears to be a
@@ -126,7 +126,6 @@ impl<'a, 'tcx> AutoTraitFinder<'a, 'tcx> {
                 inner: ImplItem(Impl {
                     unsafety: hir::Unsafety::Normal,
                     generics: new_generics,
-                    provided_trait_methods: Default::default(),
                     trait_: Some(trait_ref.clean(self.cx).get_trait_type().unwrap()),
                     for_: ty.clean(self.cx),
                     items: Vec::new(),

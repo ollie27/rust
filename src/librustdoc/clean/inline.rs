@@ -364,24 +364,16 @@ pub fn build_impl(cx: &DocContext<'_>, did: DefId, ret: &mut Vec<clean::Item>) {
         record_extern_trait(cx, trait_did);
     }
 
-    let provided = trait_.def_id().map(|did| {
-        tcx.provided_trait_methods(did)
-           .into_iter()
-           .map(|meth| meth.ident.to_string())
-           .collect()
-    }).unwrap_or_default();
-
     debug!("build_impl: impl {:?} for {:?}", trait_.def_id(), for_.def_id());
 
     ret.push(clean::Item {
         inner: clean::ImplItem(clean::Impl {
             unsafety: hir::Unsafety::Normal,
             generics,
-            provided_trait_methods: provided,
             trait_,
             for_,
             items: trait_items,
-            polarity: Some(polarity.clean(cx)),
+            polarity: polarity.clean(cx),
             synthetic: false,
             blanket_impl: None,
         }),

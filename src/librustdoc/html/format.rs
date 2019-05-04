@@ -763,9 +763,7 @@ fn fmt_impl(i: &clean::Impl,
     }
 
     if let Some(ref ty) = i.trait_ {
-        if i.polarity == Some(clean::ImplPolarity::Negative) {
-            write!(f, "!")?;
-        }
+        fmt::Display::fmt(&i.polarity, f)?;
 
         if link_trait {
             fmt::Display::fmt(ty, f)?;
@@ -1064,6 +1062,15 @@ impl fmt::Display for DefaultSpace {
             write!(f, "default ")
         } else {
             Ok(())
+        }
+    }
+}
+
+impl fmt::Display for clean::ImplPolarity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            clean::ImplPolarity::Positive => Ok(()),
+            clean::ImplPolarity::Negative => f.write_str("!"),
         }
     }
 }

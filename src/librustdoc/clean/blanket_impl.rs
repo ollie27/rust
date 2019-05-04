@@ -90,11 +90,6 @@ impl<'a, 'tcx> BlanketImplFinder<'a, 'tcx> {
 
                 self.cx.generated_synthetics.borrow_mut()
                                             .insert((ty, trait_def_id));
-                let provided_trait_methods =
-                    self.cx.tcx.provided_trait_methods(trait_def_id)
-                                .into_iter()
-                                .map(|meth| meth.ident.to_string())
-                                .collect();
 
                 impls.push(Item {
                     source: self.cx.tcx.def_span(impl_def_id).clean(self.cx),
@@ -110,7 +105,6 @@ impl<'a, 'tcx> BlanketImplFinder<'a, 'tcx> {
                             self.cx.tcx.generics_of(impl_def_id),
                             &self.cx.tcx.explicit_predicates_of(impl_def_id),
                         ).clean(self.cx),
-                        provided_trait_methods,
                         // FIXME(eddyb) compute both `trait_` and `for_` from
                         // the post-inference `trait_ref`, as it's more accurate.
                         trait_: Some(trait_ref.clean(self.cx).get_trait_type().unwrap()),
@@ -118,7 +112,7 @@ impl<'a, 'tcx> BlanketImplFinder<'a, 'tcx> {
                         items: self.cx.tcx.associated_items(impl_def_id)
                                         .collect::<Vec<_>>()
                                         .clean(self.cx),
-                        polarity: None,
+                        polarity: ImplPolarity::Positive,
                         synthetic: false,
                         blanket_impl: Some(trait_ref.self_ty().clean(self.cx)),
                     }),

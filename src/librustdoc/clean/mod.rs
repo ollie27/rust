@@ -3766,11 +3766,10 @@ impl Clean<ImplPolarity> for hir::ImplPolarity {
 pub struct Impl {
     pub unsafety: hir::Unsafety,
     pub generics: Generics,
-    pub provided_trait_methods: FxHashSet<String>,
     pub trait_: Option<Type>,
     pub for_: Type,
     pub items: Vec<Item>,
-    pub polarity: Option<ImplPolarity>,
+    pub polarity: ImplPolarity,
     pub synthetic: bool,
     pub blanket_impl: Option<Type>,
 }
@@ -3796,13 +3795,6 @@ impl Clean<Vec<Item>> for doctree::Impl {
             build_deref_target_impls(cx, &items, &mut ret);
         }
 
-        let provided = trait_.def_id().map(|did| {
-            cx.tcx.provided_trait_methods(did)
-                  .into_iter()
-                  .map(|meth| meth.ident.to_string())
-                  .collect()
-        }).unwrap_or_default();
-
         ret.push(Item {
             name: None,
             attrs: self.attrs.clean(cx),
@@ -3814,11 +3806,10 @@ impl Clean<Vec<Item>> for doctree::Impl {
             inner: ImplItem(Impl {
                 unsafety: self.unsafety,
                 generics: self.generics.clean(cx),
-                provided_trait_methods: provided,
                 trait_,
                 for_: self.for_.clean(cx),
                 items,
-                polarity: Some(self.polarity.clean(cx)),
+                polarity: self.polarity.clean(cx),
                 synthetic: false,
                 blanket_impl: None,
             })

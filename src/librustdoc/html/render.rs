@@ -3069,7 +3069,7 @@ fn render_impls(cx: &Context, w: &mut fmt::Formatter<'_>,
                 containing_item: &clean::Item) -> fmt::Result {
     for i in traits {
         let did = i.trait_did().unwrap();
-        let assoc_link = AssocItemLink::GotoSource(did, &i.inner_impl().provided_trait_methods);
+        let assoc_link = AssocItemLink::GotoSource(did);
         render_impl(w, cx, i, assoc_link,
                     RenderMode::Normal, containing_item.stable_since(), true, None, false)?;
     }
@@ -3296,8 +3296,7 @@ fn item_trait(
 
             for implementor in foreign {
                 let assoc_link = AssocItemLink::GotoSource(
-                    implementor.impl_item.def_id,
-                    &implementor.inner_impl().provided_trait_methods
+                    implementor.trait_did().unwrap(),
                 );
                 render_impl(w, cx, &implementor, assoc_link,
                             RenderMode::Normal, implementor.impl_item.stable_since(), false,
@@ -3368,7 +3367,7 @@ fn naive_assoc_href(it: &clean::Item, link: AssocItemLink<'_>) -> String {
     match link {
         AssocItemLink::Anchor(Some(ref id)) => format!("#{}", id),
         AssocItemLink::Anchor(None) => anchor,
-        AssocItemLink::GotoSource(did, _) => {
+        AssocItemLink::GotoSource(did) => {
             href(did).map(|p| format!("{}{}", p.0, anchor)).unwrap_or(anchor)
         }
     }
@@ -3439,14 +3438,10 @@ fn render_assoc_item(w: &mut fmt::Formatter<'_>,
         let href = match link {
             AssocItemLink::Anchor(Some(ref id)) => format!("#{}", id),
             AssocItemLink::Anchor(None) => anchor,
-            AssocItemLink::GotoSource(did, provided_methods) => {
+            AssocItemLink::GotoSource(did) => {
                 // We're creating a link from an impl-item to the corresponding
                 // trait-item and need to map the anchored type accordingly.
-                let ty = if provided_methods.contains(name) {
-                    ItemType::Method
-                } else {
-                    ItemType::TyMethod
-                };
+                let ty = cache().traits[&did].items.iter().find(|i| i.name.as_ref() == Some(name)).unwrap().type_();
 
                 href(did).map(|p| format!("{}#{}.{}", p.0, ty, name)).unwrap_or(anchor)
             }
@@ -3900,7 +3895,7 @@ fn render_union(w: &mut fmt::Formatter<'_>, it: &clean::Item,
 #[derive(Copy, Clone)]
 enum AssocItemLink<'a> {
     Anchor(Option<&'a str>),
-    GotoSource(DefId, &'a FxHashSet<String>),
+    GotoSource(DefId),
 }
 
 impl<'a> AssocItemLink<'a> {
@@ -4117,7 +4112,7 @@ fn spotlight_decl(decl: &clean::FnDecl) -> Result<String, fmt::Error> {
                             out.push_str("<span class=\"where fmt-newline\">    ");
                             assoc_type(&mut out, it, &[],
                                        Some(&tydef.type_),
-                                       AssocItemLink::GotoSource(t_did, &FxHashSet::default()))?;
+                                       AssocItemLink::GotoSource(t_did))?;
                             out.push_str(";</span>");
                         }
                     }
@@ -4311,7 +4306,7 @@ fn render_impl(w: &mut fmt::Formatter<'_>, cx: &Context, i: &Impl, link: AssocIt
                 continue;
             }
             let did = i.trait_.as_ref().unwrap().def_id().unwrap();
-            let assoc_link = AssocItemLink::GotoSource(did, &i.provided_trait_methods);
+            let assoc_link = AssocItemLink::GotoSource(did);
 
             doc_impl_item(w, cx, trait_item, assoc_link, render_mode, true,
                           outer_version, None, show_def_docs)?;
@@ -4615,14 +4610,13 @@ fn sidebar_assoc_items(it: &clean::Item) -> String {
 
                 let mut ret = impls.iter()
                     .filter_map(|i| {
-                        let is_negative_impl = is_negative_impl(i.inner_impl());
-                        if let Some(ref i) = i.inner_impl().trait_ {
-                            let i_display = format!("{:#}", i);
-                            let out = Escape(&i_display);
-                            let encoded = small_url_encode(&format!("{:#}", i));
+                        if let Some(ref t) = i.inner_impl().trait_ {
+                            let t_display = format!("{:#}", t);
+                            let out = Escape(&t_display);
+                            let encoded = small_url_encode(&format!("{:#}", t));
                             let generated = format!("<a href=\"#impl-{}\">{}{}</a>",
                                                     encoded,
-                                                    if is_negative_impl { "!" } else { "" },
+                                                    i.inner_impl().polarity,
                                                     out);
                             if links.insert(generated.clone()) {
                                 Some(generated)
@@ -4707,10 +4701,6 @@ fn extract_for_impl_name(item: &clean::Item) -> Option<(String, String)> {
         },
         _ => None,
     }
-}
-
-fn is_negative_impl(i: &clean::Impl) -> bool {
-    i.polarity == Some(clean::ImplPolarity::Negative)
 }
 
 fn sidebar_trait(fmt: &mut fmt::Formatter<'_>, it: &clean::Item,
