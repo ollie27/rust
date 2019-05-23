@@ -79,8 +79,7 @@ const DW_ATE_float: c_uint = 0x04;
 const DW_ATE_signed: c_uint = 0x05;
 #[allow(non_upper_case_globals)]
 const DW_ATE_unsigned: c_uint = 0x07;
-#[allow(non_upper_case_globals)]
-const DW_ATE_unsigned_char: c_uint = 0x08;
+const DW_ATE_UTF: c_uint = 0x10;
 
 pub const UNKNOWN_LINE_NUMBER: c_uint = 0;
 pub const UNKNOWN_COLUMN_NUMBER: c_uint = 0;
@@ -840,7 +839,7 @@ fn basic_type_metadata(cx: &CodegenCx<'ll, 'tcx>, t: Ty<'tcx>) -> &'ll DIType {
         ty::Tuple(ref elements) if elements.is_empty() =>
             ("()", DW_ATE_unsigned),
         ty::Bool => ("bool", DW_ATE_boolean),
-        ty::Char => ("char", DW_ATE_unsigned_char),
+        ty::Char => ("char", DW_ATE_UTF),
         ty::Int(int_ty) => {
             (int_ty.ty_to_string(), DW_ATE_signed)
         },
