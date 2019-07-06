@@ -1700,7 +1700,7 @@ impl<'a, 'tcx> Clean<Generics> for (&'a ty::Generics,
         // predicates field (see rustc_typeck::collect::ty_generics), so remove
         // them.
         let stripped_typarams = gens.params.iter().enumerate()
-            .filter_map(|(i, param)| match param.kind {
+            .filter_map(|(_i, param)| match param.kind {
                 ty::GenericParamDefKind::Lifetime => None,
                 ty::GenericParamDefKind::Type { synthetic, .. } => {
                     if param.name.as_symbol() == kw::SelfUpper {
@@ -1708,13 +1708,13 @@ impl<'a, 'tcx> Clean<Generics> for (&'a ty::Generics,
                         return None;
                     }
                     if synthetic == Some(hir::SyntheticTyParamKind::ImplTrait) {
-                        impl_trait.insert((i as u32).into(), vec![]);
+                        impl_trait.insert(param.index.into(), vec![]);
                         return None;
                     }
-                    Some(param.clean(cx))
+                    Some((param.clean(cx), param.index))
                 }
                 ty::GenericParamDefKind::Const { .. } => None,
-            }).collect::<Vec<GenericParamDef>>();
+            }).collect::<Vec<(GenericParamDef, u32)>>();
 
         let mut where_predicates = preds.predicates.iter()
             .flat_map(|(p, _)| {
@@ -1730,37 +1730,19 @@ impl<'a, 'tcx> Clean<Generics> for (&'a ty::Generics,
                     } else {
                         None
                     }
+                } else if let ty::Predicate::Projection(projection) = p {
+                    if let ty::Param(param) = projection.skip_binder().projection_ty.self_ty().sty {
+                        Some(param.index)
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 };
 
-                let p = p.clean(cx)?;
-
-                if let Some(b) = param_idx.and_then(|i| impl_trait.get_mut(&i.into())) {
-                    b.extend(
-                        p.get_bounds()
-                            .into_iter()
-                            .flatten()
-                            .cloned()
-                            .filter(|b| !b.is_sized_bound(cx))
-                    );
-                    return None;
-                }
-
-                Some(p)
+                Some((p.clean(cx)?, param_idx))
             })
             .collect::<Vec<_>>();
-
-        // Move `TraitPredicate`s to the front.
-        for (_, bounds) in impl_trait.iter_mut() {
-            bounds.sort_by_key(|b| if let GenericBound::TraitBound(..) = b {
-                false
-            } else {
-                true
-            });
-        }
-
-        cx.impl_trait_bounds.borrow_mut().extend(impl_trait);
 
         // Type parameters and have a Sized bound by default unless removed with
         // ?Sized. Scan through the predicates and mark any type parameter with
@@ -1771,8 +1753,8 @@ impl<'a, 'tcx> Clean<Generics> for (&'a ty::Generics,
         // handled in cleaning associated types
         let mut sized_params = FxHashSet::default();
         where_predicates.retain(|pred| {
-            match *pred {
-                WP::BoundPredicate { ty: Generic(ref g), ref bounds } => {
+            match pred {
+                (WP::BoundPredicate { ty: Generic(ref g), ref bounds }, _index) => {
                     if bounds.iter().any(|b| b.is_sized_bound(cx)) {
                         sized_params.insert(g.clone());
                         false
@@ -1786,14 +1768,42 @@ impl<'a, 'tcx> Clean<Generics> for (&'a ty::Generics,
 
         // Run through the type parameters again and insert a ?Sized
         // unbound for any we didn't find to be Sized.
-        for tp in &stripped_typarams {
+        for (tp, param_idx) in &stripped_typarams {
             if !sized_params.contains(&tp.name) {
-                where_predicates.push(WP::BoundPredicate {
+                where_predicates.push((WP::BoundPredicate {
                     ty: Type::Generic(tp.name.clone()),
                     bounds: vec![GenericBound::maybe_sized(cx)],
-                })
+                }, Some(*param_idx)))
             }
         }
+
+        where_predicates = simplify::where_clauses(cx, where_predicates);
+
+        where_predicates.retain(|(p, param_idx)| {
+            if let Some(b) = param_idx.and_then(|i| impl_trait.get_mut(&i.into())) {
+                b.extend(
+                    p.get_bounds()
+                        .into_iter()
+                        .flatten()
+                        .cloned()
+                        .filter(|b| !b.is_sized_bound(cx))
+                );
+                false
+            } else {
+                true
+            }
+        });
+
+        // Move `TraitPredicate`s to the front.
+        for (_, bounds) in impl_trait.iter_mut() {
+            bounds.sort_by_key(|b| if let GenericBound::TraitBound(..) = b {
+                false
+            } else {
+                true
+            });
+        }
+
+        cx.impl_trait_bounds.borrow_mut().extend(impl_trait);
 
         // It would be nice to collect all of the bounds on a type and recombine
         // them if possible, to avoid e.g., `where T: Foo, T: Bar, T: Sized, T: 'a`
@@ -1806,9 +1816,9 @@ impl<'a, 'tcx> Clean<Generics> for (&'a ty::Generics,
                             ty::GenericParamDefKind::Lifetime => Some(param.clean(cx)),
                             ty::GenericParamDefKind::Type { .. } => None,
                             ty::GenericParamDefKind::Const { .. } => Some(param.clean(cx)),
-                        }).chain(simplify::ty_params(stripped_typarams).into_iter())
+                        }).chain(simplify::ty_params(stripped_typarams.into_iter().map(|x| x.0).collect()).into_iter())
                         .collect(),
-            where_predicates: simplify::where_clauses(cx, where_predicates),
+            where_predicates: where_predicates.into_iter().map(|x| x.0).collect(),
         }
     }
 }

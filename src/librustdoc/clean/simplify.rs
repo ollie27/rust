@@ -22,37 +22,40 @@ use crate::clean::WherePredicate as WP;
 use crate::clean;
 use crate::core::DocContext;
 
-pub fn where_clauses(cx: &DocContext<'_>, clauses: Vec<WP>) -> Vec<WP> {
+pub fn where_clauses(cx: &DocContext<'_>, clauses: Vec<(WP, Option<u32>)>) -> Vec<(WP, Option<u32>)> {
     // First, partition the where clause into its separate components
-    let mut params: BTreeMap<_, Vec<_>> = BTreeMap::new();
+    let mut params: BTreeMap<_, (Vec<_>, Option<u32>)> = BTreeMap::new();
     let mut lifetimes = Vec::new();
     let mut equalities = Vec::new();
     let mut tybounds = Vec::new();
 
-    for clause in clauses {
+    for (clause, index) in clauses {
         match clause {
             WP::BoundPredicate { ty, bounds } => {
                 match ty {
-                    clean::Generic(s) => params.entry(s).or_default()
-                                               .extend(bounds),
-                    t => tybounds.push((t, ty_bounds(bounds))),
+                    clean::Generic(s) => {
+                        let (b, _i) = params.entry(s).or_insert((Vec::new(), index));
+                        // assert_eq!(*i, index); // TODO: fails for `pub fn g(_x: impl Fn(), _y: impl Fn()) {}`
+                        b.extend(bounds);
+                    }
+                    t => tybounds.push((t, ty_bounds(bounds), index)),
                 }
             }
             WP::RegionPredicate { lifetime, bounds } => {
-                lifetimes.push((lifetime, bounds));
+                lifetimes.push((lifetime, bounds, index));
             }
-            WP::EqPredicate { lhs, rhs } => equalities.push((lhs, rhs)),
+            WP::EqPredicate { lhs, rhs } => equalities.push((lhs, rhs, index)),
         }
     }
 
     // Simplify the type parameter bounds on all the generics
     let mut params = params.into_iter().map(|(k, v)| {
-        (k, ty_bounds(v))
+        (k, (ty_bounds(v.0), v.1))
     }).collect::<BTreeMap<_, _>>();
 
     // Look for equality predicates on associated types that can be merged into
     // general bound predicates
-    equalities.retain(|&(ref lhs, ref rhs)| {
+    equalities.retain(|&(ref lhs, ref rhs, _index)| {
         let (self_, trait_, name) = match *lhs {
             clean::QPath { ref self_type, ref trait_, ref name } => {
                 (self_type, trait_, name)
@@ -68,7 +71,7 @@ pub fn where_clauses(cx: &DocContext<'_>, clauses: Vec<WP>) -> Vec<WP> {
             _ => return true,
         };
         let bounds = match params.get_mut(generic) {
-            Some(bound) => bound,
+            Some((bound, _index)) => bound,
             None => return true,
         };
         !bounds.iter_mut().any(|b| {
@@ -109,20 +112,20 @@ pub fn where_clauses(cx: &DocContext<'_>, clauses: Vec<WP>) -> Vec<WP> {
 
     // And finally, let's reassemble everything
     let mut clauses = Vec::new();
-    clauses.extend(lifetimes.into_iter().map(|(lt, bounds)| {
-        WP::RegionPredicate { lifetime: lt, bounds: bounds }
+    clauses.extend(lifetimes.into_iter().map(|(lt, bounds, index)| {
+        (WP::RegionPredicate { lifetime: lt, bounds: bounds }, index)
     }));
     clauses.extend(params.into_iter().map(|(k, v)| {
-        WP::BoundPredicate {
+        (WP::BoundPredicate {
             ty: clean::Generic(k),
-            bounds: v,
-        }
+            bounds: v.0,
+        }, v.1)
     }));
-    clauses.extend(tybounds.into_iter().map(|(ty, bounds)| {
-        WP::BoundPredicate { ty: ty, bounds: bounds }
+    clauses.extend(tybounds.into_iter().map(|(ty, bounds, index)| {
+        (WP::BoundPredicate { ty: ty, bounds: bounds }, index)
     }));
-    clauses.extend(equalities.into_iter().map(|(lhs, rhs)| {
-        WP::EqPredicate { lhs: lhs, rhs: rhs }
+    clauses.extend(equalities.into_iter().map(|(lhs, rhs, index)| {
+        (WP::EqPredicate { lhs: lhs, rhs: rhs }, index)
     }));
     clauses
 }
