@@ -46,7 +46,7 @@ pub fn run(options: Options) -> i32 {
     let sessopts = config::Options {
         maybe_sysroot: options.maybe_sysroot.clone(),
         search_paths: options.libs.clone(),
-        crate_types: vec![config::CrateType::Dylib],
+        crate_types: vec![config::CrateType::Rlib],
         cg: options.codegen_options.clone(),
         externs: options.externs.clone(),
         unstable_features: UnstableFeatures::from_environment(),
@@ -111,9 +111,14 @@ pub fn run(options: Options) -> i32 {
                 intravisit::walk_crate(this, krate);
             });
         });
+        compiler.session().abort_if_errors();
 
         Ok(collector.tests)
-    }).expect("compiler aborted in rustdoc!");
+    });
+    let tests = match tests {
+        Ok(tests) => tests,
+        Err(ErrorReported) => return 1,
+    };
 
     test_args.insert(0, "rustdoctest".to_string());
 
