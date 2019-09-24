@@ -20,7 +20,7 @@ pub fn bar() {}
 /// \_
 /// ```
 ///
-/// ```text
+/// ```
 /// "invalid
 /// ```
 pub fn valid_and_invalid() {}

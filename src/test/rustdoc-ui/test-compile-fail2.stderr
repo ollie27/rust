@@ -1,0 +1,8 @@
+error: expected one of `!` or `::`, found `<eof>`
+  --> $DIR/test-compile-fail2.rs:3:1
+   |
+LL | fail
+   | ^^^^ expected one of `!` or `::` here
+
+error: aborting due to previous error
+

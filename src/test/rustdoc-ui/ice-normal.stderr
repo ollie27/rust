@@ -1,0 +1,19 @@
+error: expected one of `!` or `::`, found `<eof>`
+  --> $DIR/ice-normal.rs:4:1
+   |
+LL | fail
+   | ^^^^ expected one of `!` or `::` here
+
+thread 'rustc' panicked at 'aborting due to `-Z treat-err-as-bug=1`', src/librustc_errors/lib.rs:540:13
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace.
+
+error: internal compiler error: unexpected panic
+
+note: the compiler unexpectedly panicked. this is a bug.
+
+note: we would appreciate a bug report: https://github.com/rust-lang/rust/blob/master/CONTRIBUTING.md#bug-reports
+
+note: rustc 1.39.0-dev running on x86_64-pc-windows-msvc
+
+note: compiler flags: -Z threads=1 -Z ui-testing -Z unstable-options -Z unstable-options -Z treat-err-as-bug -C debuginfo=0
+

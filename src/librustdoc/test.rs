@@ -42,7 +42,7 @@ pub fn run(options: Options) -> i32 {
     let crate_types = if options.proc_macro_crate {
         vec![config::CrateType::ProcMacro]
     } else {
-        vec![config::CrateType::Dylib]
+        vec![config::CrateType::Rlib]
     };
 
     let sessopts = config::Options {
@@ -54,9 +54,7 @@ pub fn run(options: Options) -> i32 {
         unstable_features: UnstableFeatures::from_environment(),
         lint_cap: Some(::rustc::lint::Level::Allow),
         actually_rustdoc: true,
-        debugging_opts: config::DebuggingOptions {
-            ..config::basic_debugging_options()
-        },
+        debugging_opts: options.debugging_options.clone(),
         edition: options.edition,
         target_triple: options.target.clone(),
         ..config::Options::default()
@@ -109,9 +107,14 @@ pub fn run(options: Options) -> i32 {
                 intravisit::walk_crate(this, krate);
             });
         });
+        compiler.session().abort_if_errors();
 
         Ok(collector.tests)
-    }).expect("compiler aborted in rustdoc!");
+    });
+    let tests = match tests {
+        Ok(tests) => tests,
+        Err(ErrorReported) => return 1,
+    };
 
     test_args.insert(0, "rustdoctest".to_string());
 
@@ -193,17 +196,7 @@ fn run_test(
     opts: &TestOptions,
     edition: Edition,
 ) -> Result<(), TestFailure> {
-    let (test, line_offset) = match panic::catch_unwind(|| {
-        make_test(test, Some(cratename), as_test_harness, opts, edition)
-    }) {
-        Ok((test, line_offset)) => (test, line_offset),
-        Err(cause) if cause.is::<errors::FatalErrorMarker>() => {
-            // If the parser used by `make_test` panicked due to a fatal error, pass the test code
-            // through unchanged. The error will be reported during compilation.
-            (test.to_owned(), 0)
-        },
-        Err(cause) => panic::resume_unwind(cause),
-    };
+    let (test, line_offset) = make_test(test, Some(cratename), as_test_harness, opts, edition);
 
     // FIXME(#44940): if doctests ever support path remapping, then this filename
     // needs to be the result of `SourceMap::span_to_unmapped_path`.
@@ -352,11 +345,6 @@ fn run_test(
 
 /// Transforms a test into code that can be compiled into a Rust binary, and returns the number of
 /// lines before the test code begins.
-///
-/// # Panics
-///
-/// This function uses the compiler's parser internally. The parser will panic if it encounters a
-/// fatal error while parsing the test.
 pub fn make_test(s: &str,
                  cratename: Option<&str>,
                  dont_insert_main: bool,
@@ -390,7 +378,7 @@ pub fn make_test(s: &str,
 
     // Uses libsyntax to parse the doctest and find if there's a main fn and the extern
     // crate already is included.
-    let (already_has_main, already_has_extern_crate, found_macro) = with_globals(edition, || {
+    let res = rustc_driver::catch_fatal_errors(|| with_globals(edition, || {
         use crate::syntax::{parse::{self, ParseSess}, source_map::FilePathMapping};
         use errors::emitter::EmitterWriter;
         use errors::Handler;
@@ -464,7 +452,13 @@ pub fn make_test(s: &str,
         }
 
         (found_main, found_extern_crate, found_macro)
-    });
+    }));
+    // If the parser panicked due to a fatal error, pass the test code through
+    // unchanged. The error will be reported during compilation.
+    let (already_has_main, already_has_extern_crate, found_macro) = match res {
+        Ok(res) => res,
+        Err(ErrorReported) => return (s.to_owned(), 0),
+    };
 
     // If a doctest's `fn main` is being masked by a wrapper macro, the parsing loop above won't
     // see it. In that case, run the old text-based scan to see if they at least have a main

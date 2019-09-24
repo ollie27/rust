@@ -83,6 +83,25 @@ help: mark blocks that do not contain Rust code as text
 LL | /// ```text
    |     ^^^^^^^
 
+error: unterminated double quote string
+ --> <doctest>:1:1
+  |
+1 | "invalid
+  | ^^^^^^^^^
+
+warning: could not parse code block as Rust code
+  --> $DIR/invalid-syntax.rs:23:5
+   |
+LL |   /// ```
+   |  _____^
+LL | | /// "invalid
+LL | | /// ```
+   | |_______^
+help: mark blocks that do not contain Rust code as text
+   |
+LL | /// ```text
+   |     ^^^^^^^
+
 error: unknown start of token: \
  --> <doctest>:1:1
   |
@@ -212,66 +231,4 @@ warning: could not parse code block as Rust code
    |
 LL | ///     \____/
    |         ^^^^^^
-
-error: unknown start of token: \
- --> <rustdoc-highlighting>:1:1
-  |
-1 | \____/
-  | ^
-
-error: unknown start of token: \
- --> <rustdoc-highlighting>:1:1
-  |
-1 | \_
-  | ^
-
-error: unknown start of token: \
- --> <rustdoc-highlighting>:1:1
-  |
-1 | \_
-  | ^
-
-error: unknown start of token: `
- --> <rustdoc-highlighting>:1:1
-  |
-1 | ```
-  | ^
-help: Unicode character '`' (Grave Accent) looks like ''' (Single Quote), but it is not
-  |
-1 | '``
-  | ^
-
-error: unknown start of token: \
- --> <rustdoc-highlighting>:2:1
-  |
-2 | \_
-  | ^
-
-error: unknown start of token: \
- --> <rustdoc-highlighting>:1:1
-  |
-1 | \_
-  | ^
-
-error: unknown start of token: \
- --> <rustdoc-highlighting>:1:1
-  |
-1 | \_
-  | ^
-
-error: unknown start of token: `
- --> <rustdoc-highlighting>:3:30
-  |
-3 |    |     ^^^^^^ did you mean `baz::foobar`?
-  |                              ^
-help: Unicode character '`' (Grave Accent) looks like ''' (Single Quote), but it is not
-  |
-3 |    |     ^^^^^^ did you mean 'baz::foobar`?
-  |                              ^
-
-error: unknown start of token: \
- --> <rustdoc-highlighting>:1:1
-  |
-1 | \__________pkt->size___________/          \_result->size_/ \__pkt->size__/
-  | ^
 

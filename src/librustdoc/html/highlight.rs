@@ -26,47 +26,41 @@ pub fn render_with_highlighting(
     tooltip: Option<(&str, &str)>,
 ) -> String {
     debug!("highlighting: ================\n{}\n==============", src);
-    let mut out = Vec::new();
-    if let Some((tooltip, class)) = tooltip {
-        write!(out, "<div class='information'><div class='tooltip {}'>ⓘ<span \
-                     class='tooltiptext'>{}</span></div></div>",
-               class, tooltip).unwrap();
-    }
+    rustc_driver::catch_fatal_errors(|| {
+        let mut out = Vec::new();
+        if let Some((tooltip, class)) = tooltip {
+            write!(out, "<div class='information'><div class='tooltip {}'>ⓘ<span \
+                        class='tooltiptext'>{}</span></div></div>",
+                class, tooltip).unwrap();
+        }
 
-    let sess = parse::ParseSess::new(FilePathMapping::empty());
-    let fm = sess.source_map().new_source_file(
-        FileName::Custom(String::from("rustdoc-highlighting")),
-        src.to_owned(),
-    );
-    let highlight_result = {
+        let cm = rustc_data_structures::sync::Lrc::new(SourceMap::new(FilePathMapping::empty()));
+        let emitter = errors::emitter::EmitterWriter::new(box io::sink(), None, false, false, false, None);
+        let handler = errors::Handler::with_emitter(false, None, box emitter);
+        let sess = parse::ParseSess::with_span_handler(handler, cm);
+        let fm = sess.source_map().new_source_file(
+            FileName::Custom(String::from("rustdoc-highlighting")),
+            src.to_owned(),
+        );
         let lexer = lexer::StringReader::new(&sess, fm, None);
         let mut classifier = Classifier::new(lexer, sess.source_map());
 
         let mut highlighted_source = vec![];
-        if classifier.write_source(&mut highlighted_source).is_err() {
-            Err(())
-        } else {
-            Ok(String::from_utf8_lossy(&highlighted_source).into_owned())
-        }
-    };
+        classifier.write_source(&mut highlighted_source).ok()?;
 
-    match highlight_result {
-        Ok(highlighted_source) => {
-            write_header(class, &mut out).unwrap();
-            write!(out, "{}", highlighted_source).unwrap();
-            if let Some(extension) = extension {
-                write!(out, "{}", extension).unwrap();
-            }
-            write_footer(&mut out).unwrap();
+        write_header(class, &mut out).unwrap();
+        out.extend(highlighted_source);
+        if let Some(extension) = extension {
+            write!(out, "{}", extension).unwrap();
         }
-        Err(()) => {
-            // If errors are encountered while trying to highlight, just emit
-            // the unhighlighted source.
-            write!(out, "<pre><code>{}</code></pre>", src).unwrap();
-        }
-    }
+        write_footer(&mut out).unwrap();
 
-    String::from_utf8_lossy(&out[..]).into_owned()
+        Some(String::from_utf8_lossy(&out[..]).into_owned())
+    }).ok().and_then(|x| x).unwrap_or_else(|| {
+        // If errors are encountered while trying to highlight, just emit
+        // the unhighlighted source.
+        format!("<pre><code>{}</code></pre>", Escape(src))
+    })
 }
 
 /// Processes a program (nested in the internal `lexer`), classifying strings of

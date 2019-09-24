@@ -77,12 +77,6 @@ mod visit_lib;
 mod test;
 mod theme;
 
-struct Output {
-    krate: clean::Crate,
-    renderinfo: html::render::RenderInfo,
-    renderopts: config::RenderOptions,
-}
-
 pub fn main() {
     let thread_stack_size: usize = if cfg!(target_os = "haiku") {
         16_000_000 // 16MB on Haiku
@@ -91,10 +85,14 @@ pub fn main() {
     };
     rustc_driver::set_sigpipe_handler();
     env_logger::init_from_env("RUSTDOC_LOG");
-    let res = std::thread::Builder::new().stack_size(thread_stack_size).spawn(move || {
-        get_args().map(|args| main_args(&args)).unwrap_or(1)
-    }).unwrap().join().unwrap_or(rustc_driver::EXIT_FAILURE);
-    process::exit(res);
+    rustc_driver::install_ice_hook();
+    let result = rustc_driver::catch_fatal_errors(|| {
+        let res = std::thread::Builder::new().stack_size(thread_stack_size).spawn(move || {
+            get_args().map(|args| main_args(&args)).unwrap_or(rustc_driver::EXIT_FAILURE)
+        }).unwrap().join();
+        res.unwrap_or_else(|err| panic::resume_unwind(err))
+    });
+    process::exit(result.unwrap_or(rustc_driver::EXIT_FAILURE));
 }
 
 fn get_args() -> Option<Vec<String>> {
@@ -425,76 +423,48 @@ fn main_options(options: config::Options) -> i32 {
         (false, false) => {}
     }
 
-    // need to move these items separately because we lose them by the time the closure is called,
-    // but we can't crates the Handler ahead of time because it's not Send
-    let diag_opts = (options.error_format,
-                     options.debugging_options.treat_err_as_bug,
-                     options.debugging_options.ui_testing,
-                     options.edition);
+    let edition = options.edition;
     let show_coverage = options.show_coverage;
-    rust_input(options, move |out| {
-        if show_coverage {
-            // if we ran coverage, bail early, we don't need to also generate docs at this point
-            // (also we didn't load in any of the useful passes)
-            return rustc_driver::EXIT_SUCCESS;
-        }
+    let crate_name = options.crate_name.clone();
+    let crate_version = options.crate_version.clone();
 
-        let Output { krate, renderinfo, renderopts } = out;
-        info!("going to format");
-        let (error_format, treat_err_as_bug, ui_testing, edition) = diag_opts;
-        let diag = core::new_handler(error_format, None, treat_err_as_bug, ui_testing);
-        match html::render::run(
-            krate,
-            renderopts,
-            renderinfo,
-            &diag,
-            edition,
-        ) {
-            Ok(_) => rustc_driver::EXIT_SUCCESS,
-            Err(e) => {
-                diag.struct_err(&format!("couldn't generate documentation: {}", e.error))
-                    .note(&format!("failed to create or modify \"{}\"", e.file.display()))
-                    .emit();
-                rustc_driver::EXIT_FAILURE
-            }
-        }
-    })
-}
+    // Interprets the input file as a rust source file, passing it through the
+    // compiler all the way through the analysis passes. The rustdoc output is then
+    // generated from the cleaned AST of the crate.
 
-/// Interprets the input file as a rust source file, passing it through the
-/// compiler all the way through the analysis passes. The rustdoc output is then
-/// generated from the cleaned AST of the crate.
-///
-/// This form of input will run all of the plug/cleaning passes
-fn rust_input<R, F>(options: config::Options, f: F) -> R
-where R: 'static + Send,
-      F: 'static + Send + FnOnce(Output) -> R
-{
     // First, parse the crate and extract all relevant information.
     info!("starting to run rustc");
 
-    let result = rustc_driver::catch_fatal_errors(move || {
-        let crate_name = options.crate_name.clone();
-        let crate_version = options.crate_version.clone();
-        let (mut krate, renderinfo, renderopts) = core::run_core(options);
+    let (mut krate, renderinfo, renderopts) = core::run_core(options);
 
-        info!("finished with rustc");
+    info!("finished with rustc");
 
-        if let Some(name) = crate_name {
-            krate.name = name
+    if let Some(name) = crate_name {
+        krate.name = name
+    }
+
+    krate.version = crate_version;
+
+    if show_coverage {
+        // if we ran coverage, bail early, we don't need to also generate docs at this point
+        // (also we didn't load in any of the useful passes)
+        return rustc_driver::EXIT_SUCCESS;
+    }
+
+    info!("going to format");
+    match html::render::run(
+        krate,
+        renderopts,
+        renderinfo,
+        &diag,
+        edition,
+    ) {
+        Ok(_) => rustc_driver::EXIT_SUCCESS,
+        Err(e) => {
+            diag.struct_err(&format!("couldn't generate documentation: {}", e.error))
+                .note(&format!("failed to create or modify \"{}\"", e.file.display()))
+                .emit();
+            rustc_driver::EXIT_FAILURE
         }
-
-        krate.version = crate_version;
-
-        f(Output {
-            krate: krate,
-            renderinfo: renderinfo,
-            renderopts,
-        })
-    });
-
-    match result {
-        Ok(output) => output,
-        Err(_) => panic::resume_unwind(Box::new(errors::FatalErrorMarker)),
     }
 }
