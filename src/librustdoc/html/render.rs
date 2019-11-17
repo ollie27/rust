@@ -1962,33 +1962,79 @@ fn name_key(name: &str) -> (&str, u64, usize) {
 fn item_module(w: &mut Buffer, cx: &Context, item: &clean::Item, items: &[clean::Item]) {
     document(w, cx, item);
 
-    let mut indices = (0..items.len()).filter(|i| !items[*i].is_stripped()).collect::<Vec<usize>>();
+    let mut indices = (0..items.len()).filter(|i| !(items[*i].is_stripped() || items[*i].is_impl())).collect::<Vec<usize>>();
 
-    // the order of item types in the listing
-    fn reorder(ty: ItemType) -> u8 {
-        match ty {
-            ItemType::ExternCrate     => 0,
-            ItemType::Import          => 1,
-            ItemType::Primitive       => 2,
-            ItemType::Module          => 3,
-            ItemType::Macro           => 4,
-            ItemType::Struct          => 5,
-            ItemType::Enum            => 6,
-            ItemType::Constant        => 7,
-            ItemType::Static          => 8,
-            ItemType::Trait           => 9,
-            ItemType::Function        => 10,
-            ItemType::Typedef         => 12,
-            ItemType::Union           => 13,
-            _                         => 14 + ty as u8,
+    #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
+    enum ModuleSection {
+        Import, // TODO: move to correct sections
+        Primitive,
+        Module,
+        Macro,
+        Type,
+        Constant,
+        Static,
+        Trait,
+        Function,
+        Keyword,
+    }
+
+    impl ModuleSection {
+        fn id_title(&self) -> (&'static str, &'static str) {
+            match self {
+                ModuleSection::Import => ("reexports", "Re-exports"),
+                ModuleSection::Primitive => ("primitives", "Primitive Types"),
+                ModuleSection::Module=> ("modules", "Modules"),
+                ModuleSection::Macro => ("macros", "Macros"),
+                ModuleSection::Type => ("types", "Types"),
+                ModuleSection::Constant => ("constants", "Constants"),
+                ModuleSection::Static => ("statics", "Statics"),
+                ModuleSection::Trait => ("traits", "Traits"),
+                ModuleSection::Function => ("functions", "Functions"),
+                ModuleSection::Keyword => ("keywords", "Keywords"),
+            }
         }
     }
 
-    fn cmp(i1: &clean::Item, i2: &clean::Item, idx1: usize, idx2: usize) -> Ordering {
-        let ty1 = i1.type_();
-        let ty2 = i2.type_();
-        if ty1 != ty2 {
-            return (reorder(ty1), idx1).cmp(&(reorder(ty2), idx2))
+    fn item_to_section(item: &clean::Item) -> ModuleSection {
+        match item.inner {
+            clean::ExternCrateItem(..) |
+            clean::ImportItem(..) => ModuleSection::Import,
+            clean::PrimitiveItem(..) => ModuleSection::Primitive,
+            clean::ModuleItem(..) => ModuleSection::Module,
+            clean::MacroItem(..) |
+            clean::ProcMacroItem(..) => ModuleSection::Macro,
+            clean::StructItem(..) |
+            clean::UnionItem(..) |
+            clean::EnumItem(..) |
+            clean::TypedefItem(_, false) |
+            clean::OpaqueTyItem(_, false) |
+            clean::ForeignTypeItem => ModuleSection::Type,
+            clean::ConstantItem(..) => ModuleSection::Constant,
+            clean::StaticItem(..) |
+            clean::ForeignStaticItem(..) => ModuleSection::Static,
+            clean::TraitItem(..) |
+            clean::TraitAliasItem(..) => ModuleSection::Trait,
+            clean::FunctionItem(..) |
+            clean::ForeignFunctionItem(..) => ModuleSection::Function,
+            clean::KeywordItem(..) => ModuleSection::Keyword,
+            clean::ImplItem(..) |
+            clean::TypedefItem(_, true) |
+            clean::OpaqueTyItem(_, true) |
+            clean::TyMethodItem(..) |
+            clean::MethodItem(..) |
+            clean::StructFieldItem(..) |
+            clean::VariantItem(..) |
+            clean::AssocConstItem(..) |
+            clean::AssocTypeItem(..) |
+            clean::StrippedItem(..) => unreachable!(),
+        }
+    }
+
+    fn cmp(i1: &clean::Item, i2: &clean::Item) -> Ordering {
+        let section1 = item_to_section(i1);
+        let section2 = item_to_section(i2);
+        if section1 != section2 {
+            return section1.cmp(&section2);
         }
         let s1 = i1.stability.as_ref().map(|s| s.level);
         let s2 = i2.stability.as_ref().map(|s| s.level);
@@ -2003,39 +2049,8 @@ fn item_module(w: &mut Buffer, cx: &Context, item: &clean::Item, items: &[clean:
     }
 
     if cx.shared.sort_modules_alphabetically {
-        indices.sort_by(|&i1, &i2| cmp(&items[i1], &items[i2], i1, i2));
+        indices.sort_by(|&i1, &i2| cmp(&items[i1], &items[i2]));
     }
-    // This call is to remove re-export duplicates in cases such as:
-    //
-    // ```
-    // pub mod foo {
-    //     pub mod bar {
-    //         pub trait Double { fn foo(); }
-    //     }
-    // }
-    //
-    // pub use foo::bar::*;
-    // pub use foo::*;
-    // ```
-    //
-    // `Double` will appear twice in the generated docs.
-    //
-    // FIXME: This code is quite ugly and could be improved. Small issue: DefId
-    // can be identical even if the elements are different (mostly in imports).
-    // So in case this is an import, we keep everything by adding a "unique id"
-    // (which is the position in the vector).
-    indices.dedup_by_key(|i| (items[*i].def_id,
-                              if items[*i].name.as_ref().is_some() {
-                                  Some(full_path(cx, &items[*i]))
-                              } else {
-                                  None
-                              },
-                              items[*i].type_(),
-                              if items[*i].is_import() {
-                                  *i
-                              } else {
-                                  0
-                              }));
 
     debug!("{:?}", indices);
     let mut curty = None;
@@ -2045,16 +2060,13 @@ fn item_module(w: &mut Buffer, cx: &Context, item: &clean::Item, items: &[clean:
             continue;
         }
 
-        let myty = Some(myitem.type_());
-        if curty == Some(ItemType::ExternCrate) && myty == Some(ItemType::Import) {
-            // Put `extern crate` and `use` re-exports in the same section.
-            curty = myty;
-        } else if myty != curty {
+        let myty = Some(item_to_section(myitem));
+        if myty != curty {
             if curty.is_some() {
                 write!(w, "</table>");
             }
             curty = myty;
-            let (short, name) = item_ty_to_strs(&myty.unwrap());
+            let (short, name) = myty.unwrap().id_title();
             write!(w, "<h2 id='{id}' class='section-header'>\
                        <a href=\"#{id}\">{name}</a></h2>\n<table>",
                    id = cx.derive_id(short.to_owned()), name = name);
@@ -2086,8 +2098,6 @@ fn item_module(w: &mut Buffer, cx: &Context, item: &clean::Item, items: &[clean:
             }
 
             _ => {
-                if myitem.name.is_none() { continue }
-
                 let unsafety_flag = match myitem.inner {
                     clean::FunctionItem(ref func) | clean::ForeignFunctionItem(ref func)
                     if func.header.unsafety == hir::Unsafety::Unsafe => {

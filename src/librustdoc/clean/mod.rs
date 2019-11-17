@@ -446,14 +446,14 @@ impl Item {
     pub fn is_union(&self) -> bool {
         self.type_() == ItemType::Union
     }
-    pub fn is_import(&self) -> bool {
-        self.type_() == ItemType::Import
-    }
     pub fn is_extern_crate(&self) -> bool {
         self.type_() == ItemType::ExternCrate
     }
     pub fn is_keyword(&self) -> bool {
         self.type_() == ItemType::Keyword
+    }
+    pub fn is_impl(&self) -> bool {
+        self.type_() == ItemType::Impl
     }
 
     pub fn is_stripped(&self) -> bool {
