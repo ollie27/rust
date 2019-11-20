@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::mem;
 use crate::ptr;
 use crate::sync::atomic::AtomicPtr;
@@ -189,6 +191,7 @@ unsafe fn register_dtor(key: Key, dtor: Dtor) {
 // instead we use a shim function which performs a volatile 1-byte load from
 // the address of the symbol to ensure it sticks around.
 
+#[cfg(not(target_thread_local))]
 #[link_section = ".CRT$XLB"]
 #[allow(dead_code, unused_variables)]
 #[used] // we don't want LLVM eliminating this symbol for any reason, and
@@ -197,6 +200,7 @@ pub static p_thread_callback: unsafe extern "system" fn(c::LPVOID, c::DWORD,
                                                         c::LPVOID) =
         on_tls_callback;
 
+#[cfg(not(target_thread_local))]
 #[allow(dead_code, unused_variables)]
 unsafe extern "system" fn on_tls_callback(h: c::LPVOID,
                                           dwReason: c::DWORD,
@@ -217,6 +221,7 @@ unsafe extern "system" fn on_tls_callback(h: c::LPVOID,
     unsafe fn reference_tls_used() {}
 }
 
+#[cfg(not(target_thread_local))]
 #[allow(dead_code)] // actually called above
 unsafe fn run_dtors() {
     let mut any_run = true;
