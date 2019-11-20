@@ -121,21 +121,7 @@ fn reachable_non_generics_provider(
         })
         .map(|def_id| {
             let export_level = if special_runtime_crate {
-                let name = tcx.symbol_name(Instance::mono(tcx, def_id)).name.as_str();
-                // We can probably do better here by just ensuring that
-                // it has hidden visibility rather than public
-                // visibility, as this is primarily here to ensure it's
-                // not stripped during LTO.
-                //
-                // In general though we won't link right if these
-                // symbols are stripped, and LTO currently strips them.
-                if name == "rust_eh_personality" ||
-                   name == "rust_eh_register_frames" ||
-                   name == "rust_eh_unregister_frames" {
-                    SymbolExportLevel::C
-                } else {
-                    SymbolExportLevel::Rust
-                }
+                SymbolExportLevel::Rust
             } else {
                 symbol_export_level(tcx, def_id)
             };
