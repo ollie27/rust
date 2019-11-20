@@ -960,7 +960,7 @@ extern "system" {
 
     pub fn GetProcAddress(handle: HMODULE,
                           name: LPCSTR) -> *mut c_void;
-    pub fn GetModuleHandleW(lpModuleName: LPCWSTR) -> HMODULE;
+    pub fn GetModuleHandleA(lpModuleName: LPCSTR) -> HMODULE;
 
     pub fn GetSystemTimeAsFileTime(lpSystemTimeAsFileTime: LPFILETIME);
 

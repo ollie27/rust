@@ -11,17 +11,13 @@
 //! manner we pay a semi-large one-time cost up front for detecting whether a
 //! function is available but afterwards it's just a load and a jump.
 
-use crate::ffi::CString;
 use crate::sync::atomic::{AtomicUsize, Ordering};
 use crate::sys::c;
 
 pub fn lookup(module: &str, symbol: &str) -> Option<usize> {
-    let mut module: Vec<u16> = module.encode_utf16().collect();
-    module.push(0);
-    let symbol = CString::new(symbol).unwrap();
     unsafe {
-        let handle = c::GetModuleHandleW(module.as_ptr());
-        match c::GetProcAddress(handle, symbol.as_ptr()) as usize {
+        let handle = c::GetModuleHandleA(module.as_ptr().cast());
+        match c::GetProcAddress(handle, symbol.as_ptr().cast()) as usize {
             0 => None,
             n => Some(n),
         }
@@ -54,9 +50,9 @@ macro_rules! compat_fn {
 
             fn load() -> usize {
                 crate::sys::compat::store_func(&PTR,
-                                          stringify!($module),
-                                          stringify!($symbol),
-                                          fallback as usize)
+                    concat!(stringify!($module), "\0"),
+                    concat!(stringify!($symbol), "\0"),
+                    fallback as usize)
             }
             unsafe extern "system" fn fallback($($argname: $argtype),*)
                                                -> $rettype {

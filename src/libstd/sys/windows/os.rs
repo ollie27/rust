@@ -37,9 +37,7 @@ pub fn error_string(mut errnum: i32) -> String {
         // `[MS-ERREF]`: https://msdn.microsoft.com/en-us/library/cc231198.aspx
         if (errnum & c::FACILITY_NT_BIT as i32) != 0 {
             // format according to https://support.microsoft.com/en-us/help/259693
-            const NTDLL_DLL: &[u16] = &['N' as _, 'T' as _, 'D' as _, 'L' as _, 'L' as _,
-                                        '.' as _, 'D' as _, 'L' as _, 'L' as _, 0];
-            module = c::GetModuleHandleW(NTDLL_DLL.as_ptr());
+            module = c::GetModuleHandleA("ntdll\0".as_ptr().cast());
 
             if module != ptr::null_mut() {
                 errnum ^= c::FACILITY_NT_BIT as i32;

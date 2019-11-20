@@ -139,7 +139,7 @@ fn kind() -> Kind {
         return Kind::CriticalSection
     }
 
-    let ret = match compat::lookup("kernel32", "AcquireSRWLockExclusive") {
+    let ret = match compat::lookup("kernel32\0", "AcquireSRWLockExclusive\0") {
         None => Kind::CriticalSection,
         Some(..) => Kind::SRWLock,
     };
