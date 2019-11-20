@@ -2,7 +2,7 @@ use crate::spec::{LinkerFlavor, Target, TargetResult, PanicStrategy};
 
 pub fn target() -> TargetResult {
     let mut base = super::windows_msvc_base::opts();
-    base.max_atomic_width = Some(64);
+    base.max_atomic_width = Some(128);
     base.has_elf_tls = true;
 
     // FIXME: this shouldn't be panic=abort, it should be panic=unwind
