@@ -502,7 +502,8 @@ where
     let result = rustc_driver::catch_fatal_errors(move || {
         let crate_name = options.crate_name.clone();
         let crate_version = options.crate_version.clone();
-        let (mut krate, renderinfo, renderopts) = core::run_core(options);
+        let (mut krate, renderinfo, renderopts, prof) = core::run_core(options);
+        let _timer = prof.generic_activity("rendering");
 
         info!("finished with rustc");
 

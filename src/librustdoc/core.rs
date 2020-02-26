@@ -5,6 +5,7 @@ use rustc::session::DiagnosticOutput;
 use rustc::session::{self, config};
 use rustc::ty::{Ty, TyCtxt};
 use rustc_data_structures::fx::{FxHashMap, FxHashSet};
+use rustc_data_structures::profiling::SelfProfilerRef;
 use rustc_driver::abort_on_err;
 use rustc_feature::UnstableFeatures;
 use rustc_hir::def::Namespace::TypeNS;
@@ -203,7 +204,7 @@ pub fn new_handler(
     )
 }
 
-pub fn run_core(options: RustdocOptions) -> (clean::Crate, RenderInfo, RenderOptions) {
+pub fn run_core(options: RustdocOptions) -> (clean::Crate, RenderInfo, RenderOptions, SelfProfilerRef) {
     // Parse, resolve, and typecheck the given crate.
 
     let RustdocOptions {
@@ -479,23 +480,27 @@ pub fn run_core(options: RustdocOptions) -> (clean::Crate, RenderInfo, RenderOpt
                 );
 
                 info!("Executing passes");
-
-                for p in passes {
-                    let run = match p.condition {
-                        Always => true,
-                        WhenDocumentPrivate => document_private,
-                        WhenNotDocumentPrivate => !document_private,
-                        WhenNotDocumentHidden => !document_hidden,
-                    };
-                    if run {
-                        debug!("running pass {}", p.pass.name);
-                        krate = (p.pass.run)(krate, &ctxt);
+                {
+                    let _timer = ctxt.sess().prof.generic_activity("passes");
+                    for p in passes {
+                        let run = match p.condition {
+                            Always => true,
+                            WhenDocumentPrivate => document_private,
+                            WhenNotDocumentPrivate => !document_private,
+                            WhenNotDocumentHidden => !document_hidden,
+                        };
+                        if run {
+                            debug!("running pass {}", p.pass.name);
+                            let _timer = ctxt.sess().prof.generic_activity(p.pass.name);
+                            krate = (p.pass.run)(krate, &ctxt);
+                        }
                     }
                 }
 
                 ctxt.sess().abort_if_errors();
 
-                (krate, ctxt.renderinfo.into_inner(), render_options)
+                let prof = ctxt.sess().prof.clone();
+                (krate, ctxt.renderinfo.into_inner(), render_options, prof)
             })
         })
     })

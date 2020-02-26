@@ -28,6 +28,7 @@ pub fn collect_trait_impls(krate: Crate, cx: &DocContext<'_>) -> Crate {
     let mut new_items = Vec::new();
 
     for &cnum in cx.tcx.crates().iter() {
+        let _timer = cx.sess().prof.generic_activity("build_all_trait_impls_from_extern_crate");
         for &did in cx.tcx.all_trait_implementations(cnum).iter() {
             inline::build_impl(cx, did, None, &mut new_items);
         }

@@ -32,6 +32,7 @@ impl<'a, 'tcx> LibEmbargoVisitor<'a, 'tcx> {
     }
 
     pub fn visit_lib(&mut self, cnum: CrateNum) {
+        let _timer = self.tcx.sess.prof.generic_activity("visit_lib");
         let did = DefId { krate: cnum, index: CRATE_DEF_INDEX };
         self.update(did, Some(AccessLevel::Public));
         self.visit_mod(did);
