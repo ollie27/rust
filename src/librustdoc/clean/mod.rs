@@ -1932,11 +1932,10 @@ impl Clean<Span> for rustc_span::Span {
         }
 
         let sm = cx.sess().source_map();
-        let filename = sm.span_to_filename(*self);
         let lo = sm.lookup_char_pos(self.lo());
         let hi = sm.lookup_char_pos(self.hi());
         Span {
-            filename,
+            file: lo.file.clone(),
             loline: lo.line,
             locol: lo.col.to_usize(),
             hiline: hi.line,

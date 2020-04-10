@@ -170,7 +170,7 @@ impl fold::DocFolder for CoverageCalculator {
                         "impl {:#} for {:#} in {}",
                         tr.print(),
                         impl_.for_.print(),
-                        i.source.filename
+                        i.source.file.name
                     );
 
                     // don't count trait impls, the missing-docs lint doesn't so we shouldn't
@@ -180,12 +180,12 @@ impl fold::DocFolder for CoverageCalculator {
                     // inherent impls *can* be documented, and those docs show up, but in most
                     // cases it doesn't make sense, as all methods on a type are in one single
                     // impl block
-                    debug!("impl {:#} in {}", impl_.for_.print(), i.source.filename);
+                    debug!("impl {:#} in {}", impl_.for_.print(), i.source.file.name);
                 }
             }
             _ => {
-                debug!("counting {:?} {:?} in {}", i.type_(), i.name, i.source.filename);
-                self.items.entry(i.source.filename.clone()).or_default().count_item(has_docs);
+                debug!("counting {:?} {:?} in {}", i.type_(), i.name, i.source.file.name);
+                self.items.entry(i.source.file.name.clone()).or_default().count_item(has_docs);
             }
         }
 

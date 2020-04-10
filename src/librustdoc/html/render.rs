@@ -47,7 +47,7 @@ use rustc_data_structures::flock;
 use rustc_data_structures::fx::{FxHashMap, FxHashSet};
 use rustc_feature::UnstableFeatures;
 use rustc_hir as hir;
-use rustc_hir::def_id::DefId;
+use rustc_hir::def_id::{DefId, LOCAL_CRATE};
 use rustc_hir::Mutability;
 use rustc_middle::middle::privacy::AccessLevels;
 use rustc_middle::middle::stability;
@@ -1618,19 +1618,19 @@ impl Context {
         let mut path = String::new();
 
         // We can safely ignore synthetic `SourceFile`s.
-        let file = match item.source.filename {
+        let file = match item.source.file.name {
             FileName::Real(ref path) => path,
             _ => return None,
         };
 
-        let (krate, path) = if item.def_id.is_local() {
+        let (krate, path) = if item.source.file.cnum == LOCAL_CRATE {
             if let Some(path) = self.shared.local_sources.get(file) {
                 (&self.shared.layout.krate, path)
             } else {
                 return None;
             }
         } else {
-            let (krate, src_root) = match *self.cache.extern_locations.get(&item.def_id.krate)? {
+            let (krate, src_root) = match *self.cache.extern_locations.get(&item.source.file.cnum)? {
                 (ref name, ref src, Local) => (name, src),
                 (ref name, ref src, Remote(ref s)) => {
                     root = s.to_string();

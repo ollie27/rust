@@ -1,11 +1,11 @@
 use crate::clean;
-use crate::docfs::PathError;
 use crate::fold::DocFolder;
 use crate::html::format::Buffer;
 use crate::html::highlight;
 use crate::html::layout;
 use crate::html::render::{Error, SharedContext, BASIC_KEYWORDS};
-use rustc_span::source_map::FileName;
+use rustc_hir::def_id::LOCAL_CRATE;
+use rustc_span::source_map::{FileName, SourceFile};
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
@@ -36,60 +36,33 @@ impl<'a> DocFolder for SourceCollector<'a> {
         // then we need to render it out to the filesystem.
         if self.scx.include_sources
             // skip all synthetic "files"
-            && item.source.filename.is_real()
-            // skip non-local items
-            && item.def_id.is_local()
+            && item.source.file.name.is_real()
+            // skip non-local files
+            && item.source.file.cnum == LOCAL_CRATE
         {
-            // If it turns out that we couldn't read this file, then we probably
-            // can't read any of the files (generating html output from json or
-            // something like that), so just don't include sources for the
-            // entire crate. The other option is maintaining this mapping on a
-            // per-file basis, but that's probably not worth it...
-            self.scx.include_sources = match self.emit_source(&item.source.filename) {
-                Ok(()) => true,
-                Err(e) => {
-                    println!(
-                        "warning: source code was requested to be rendered, \
-                              but processing `{}` had an error: {}",
-                        item.source.filename, e
-                    );
-                    println!("         skipping rendering of source code");
-                    false
-                }
-            };
+            self.emit_source(&item.source.file).unwrap(); // TODO: proper error handling
         }
         self.fold_item_recur(item)
     }
 }
 
 impl<'a> SourceCollector<'a> {
-    /// Renders the given filename into its corresponding HTML source file.
-    fn emit_source(&mut self, filename: &FileName) -> Result<(), Error> {
-        let p = match *filename {
-            FileName::Real(ref file) => file,
+    /// Renders the given file into its corresponding HTML source file.
+    fn emit_source(&mut self, file: &SourceFile) -> Result<(), Error> {
+        let p = match &file.name {
+            FileName::Real(file) => file,
             _ => return Ok(()),
         };
-        if self.scx.local_sources.contains_key(&**p) {
+        if self.scx.local_sources.contains_key(p) {
             // We've already emitted this source
             return Ok(());
         }
-
-        let contents = match fs::read_to_string(&p) {
-            Ok(contents) => contents,
-            Err(e) => {
-                return Err(Error::new(e, &p));
-            }
-        };
-
-        // Remove the utf-8 BOM if any
-        let contents =
-            if contents.starts_with("\u{feff}") { &contents[3..] } else { &contents[..] };
 
         // Create the intermediate directories
         let mut cur = self.dst.clone();
         let mut root_path = String::from("../../");
         let mut href = String::new();
-        clean_path(&self.scx.src_root, &p, false, |component| {
+        clean_path(&self.scx.src_root, p, false, |component| {
             cur.push(component);
             root_path.push_str("../");
             href.push_str(&component.to_string_lossy());
@@ -105,7 +78,7 @@ impl<'a> SourceCollector<'a> {
             "{} -- source",
             cur.file_name().expect("failed to get file name").to_string_lossy()
         );
-        let desc = format!("Source to the Rust file `{}`.", filename);
+        let desc = format!("Source to the Rust file `{}`.", file.name);
         let page = layout::Page {
             title: &title,
             css_class: "source",
@@ -121,7 +94,7 @@ impl<'a> SourceCollector<'a> {
             &self.scx.layout,
             &page,
             "",
-            |buf: &mut _| print_src(buf, &contents),
+            |buf: &mut _| print_src(buf, file.src.as_ref().unwrap()), // TODO: can this unwrap be removed?
             &self.scx.themes,
         );
         self.scx.fs.write(&cur, v.as_bytes())?;
