@@ -341,7 +341,7 @@ pub fn look_for_tests<'tcx>(
     find_testable_code(&dox, &mut tests, ErrorCodes::No, false);
 
     if check_missing_code && tests.found_tests == 0 {
-        let sp = span_of_attrs(&item.attrs).unwrap_or(item.source.span());
+        let sp = span_of_attrs(&item.attrs).unwrap_or(item.span());
         cx.tcx.struct_span_lint_hir(lint::builtin::MISSING_DOC_CODE_EXAMPLES, hir_id, sp, |lint| {
             lint.build("missing code example in this documentation").emit()
         });
@@ -352,7 +352,7 @@ pub fn look_for_tests<'tcx>(
         cx.tcx.struct_span_lint_hir(
             lint::builtin::PRIVATE_DOC_TESTS,
             hir_id,
-            span_of_attrs(&item.attrs).unwrap_or(item.source.span()),
+            span_of_attrs(&item.attrs).unwrap_or(item.span()),
             |lint| lint.build("documentation test in private item").emit(),
         );
     }

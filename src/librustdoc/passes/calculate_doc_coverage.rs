@@ -137,6 +137,13 @@ impl CoverageCalculator {
 
 impl fold::DocFolder for CoverageCalculator {
     fn fold_item(&mut self, i: clean::Item) -> Option<clean::Item> {
+        // TODO: skip if src file is from another crate
+        let file_name = match &i.source {
+            Some(source) => &source.file.name,
+            // FIXME: what should we really do for missing sources?
+            None => &FileName::Anon(0),
+        };
+
         let has_docs = !i.attrs.doc_strings.is_empty();
 
         match i.inner {
@@ -166,12 +173,7 @@ impl fold::DocFolder for CoverageCalculator {
             }
             clean::ImplItem(ref impl_) => {
                 if let Some(ref tr) = impl_.trait_ {
-                    debug!(
-                        "impl {:#} for {:#} in {}",
-                        tr.print(),
-                        impl_.for_.print(),
-                        i.source.filename
-                    );
+                    debug!("impl {:#} for {:#} in {}", tr.print(), impl_.for_.print(), file_name);
 
                     // don't count trait impls, the missing-docs lint doesn't so we shouldn't
                     // either
@@ -180,12 +182,12 @@ impl fold::DocFolder for CoverageCalculator {
                     // inherent impls *can* be documented, and those docs show up, but in most
                     // cases it doesn't make sense, as all methods on a type are in one single
                     // impl block
-                    debug!("impl {:#} in {}", impl_.for_.print(), i.source.filename);
+                    debug!("impl {:#} in {}", impl_.for_.print(), file_name);
                 }
             }
             _ => {
-                debug!("counting {:?} {:?} in {}", i.type_(), i.name, i.source.filename);
-                self.items.entry(i.source.filename.clone()).or_default().count_item(has_docs);
+                debug!("counting {:?} {:?} in {}", i.type_(), i.name, file_name);
+                self.items.entry(file_name.clone()).or_default().count_item(has_docs);
             }
         }
 

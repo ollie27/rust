@@ -1928,25 +1928,23 @@ impl Clean<VariantKind> for hir::VariantData<'_> {
     }
 }
 
-impl Clean<Span> for rustc_span::Span {
-    fn clean(&self, cx: &DocContext<'_>) -> Span {
+impl Clean<Option<Span>> for rustc_span::Span {
+    fn clean(&self, cx: &DocContext<'_>) -> Option<Span> {
         if self.is_dummy() {
-            return Span::empty();
+            return None;
         }
 
         let sm = cx.sess().source_map();
-        let filename = sm.span_to_filename(*self);
         let lo = sm.lookup_char_pos(self.lo());
         let hi = sm.lookup_char_pos(self.hi());
-        Span {
-            filename,
-            cnum: lo.file.cnum,
+        Some(Span {
+            file: lo.file.clone(),
             loline: lo.line,
             locol: lo.col.to_usize(),
             hiline: hi.line,
             hicol: hi.col.to_usize(),
             original: *self,
-        }
+        })
     }
 }
 
