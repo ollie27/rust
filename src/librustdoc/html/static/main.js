@@ -1,5 +1,5 @@
 // From rust:
-/* global ALIASES, currentCrate, rootPath */
+/* global currentCrate, rootPath */
 
 // Local js definitions:
 /* global addClass, getCurrentValue, hasClass */
@@ -531,6 +531,7 @@ function getSearchElement() {
         var OUTPUT_DATA = 1;
         var NO_TYPE_FILTER = -1;
         var currentResults, index, searchIndex;
+        var searchAliases = {};
         var params = getQueryStringParams();
 
         // Populate search bar with query string search term when provided,
@@ -1190,13 +1191,15 @@ function getSearchElement() {
                 "returned": sortResults(results_returned, true),
                 "others": sortResults(results),
             };
-            if (ALIASES && ALIASES[window.currentCrate] &&
-                    ALIASES[window.currentCrate][query.raw]) {
-                var aliases = ALIASES[window.currentCrate][query.raw];
+            if (searchAliases[window.currentCrate][query.raw]) {
+                var aliases = searchAliases[window.currentCrate][query.raw];
                 for (i = 0; i < aliases.length; ++i) {
                     aliases[i].is_alias = true;
                     aliases[i].alias = query.raw;
                     aliases[i].path = aliases[i].p;
+                    if (typeof aliases[i].parent === "number") {
+                        aliases[i].parent = rawSearchIndex[aliases[i].crate].p[aliases[i].parent];
+                    }
                     var res = buildHrefAndPath(aliases[i]);
                     aliases[i].displayPath = pathSplitter(res[0]);
                     aliases[i].fullPath = aliases[i].displayPath + aliases[i].name;
@@ -1669,6 +1672,8 @@ function getSearchElement() {
                     desc: rawSearchIndex[crate].doc,
                     type: null,
                 });
+
+                searchAliases[crate] = rawSearchIndex[crate].aliases;
 
                 // an array of [(Number) item type,
                 //              (String) name,

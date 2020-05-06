@@ -643,6 +643,13 @@ impl Attributes {
             })
             .collect()
     }
+
+    pub(crate) fn get_search_aliases(&self) -> Vec<String> {
+        self.lists(sym::doc)
+            .filter(|a| a.check_name(sym::alias))
+            .filter_map(|a| a.value_str().map(|s| s.to_string()))
+            .collect()
+    }
 }
 
 impl PartialEq for Attributes {
