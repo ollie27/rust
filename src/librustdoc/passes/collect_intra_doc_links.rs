@@ -712,7 +712,7 @@ fn build_diagnostic(
         }
     };
     let attrs = &item.attrs;
-    let sp = span_of_attrs(attrs).unwrap_or(item.source.span());
+    let sp = span_of_attrs(attrs).unwrap_or(item.span());
 
     cx.tcx.struct_span_lint_hir(
         lint::builtin::INTRA_DOC_LINK_RESOLUTION_FAILURE,
@@ -813,7 +813,7 @@ fn ambiguity_error(
         }
     };
     let attrs = &item.attrs;
-    let sp = span_of_attrs(attrs).unwrap_or(item.source.span());
+    let sp = span_of_attrs(attrs).unwrap_or(item.span());
 
     cx.tcx.struct_span_lint_hir(
         lint::builtin::INTRA_DOC_LINK_RESOLUTION_FAILURE,

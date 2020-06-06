@@ -118,7 +118,7 @@ impl<'a, 'tcx> AutoTraitFinder<'a, 'tcx> {
                 };
 
                 Some(Item {
-                    source: Span::empty(),
+                    source: None,
                     name: None,
                     attrs: Default::default(),
                     visibility: Inherited,

@@ -3,8 +3,8 @@ use crate::clean::blanket_impl::BlanketImplFinder;
 use crate::clean::{
     inline, Clean, Crate, Deprecation, ExternalCrate, FnDecl, FnRetTy, Generic, GenericArg,
     GenericArgs, GenericBound, Generics, GetDefId, ImportSource, Item, ItemEnum, MacroKind, Path,
-    PathSegment, Primitive, PrimitiveType, ResolvedPath, Span, Stability, Type, TypeBinding,
-    TypeKind, Visibility, WherePredicate,
+    PathSegment, Primitive, PrimitiveType, ResolvedPath, Stability, Type, TypeBinding, TypeKind,
+    Visibility, WherePredicate,
 };
 use crate::core::DocContext;
 
@@ -66,7 +66,7 @@ pub fn krate(mut cx: &mut DocContext<'_>) -> Crate {
             _ => unreachable!(),
         };
         m.items.extend(primitives.iter().map(|&(def_id, prim, ref attrs)| Item {
-            source: Span::empty(),
+            source: None,
             name: Some(prim.to_url_str().to_string()),
             attrs: attrs.clone(),
             visibility: Visibility::Public,
@@ -76,7 +76,7 @@ pub fn krate(mut cx: &mut DocContext<'_>) -> Crate {
             inner: ItemEnum::PrimitiveItem(prim),
         }));
         m.items.extend(keywords.into_iter().map(|(def_id, kw, attrs)| Item {
-            source: Span::empty(),
+            source: None,
             name: Some(kw.clone()),
             attrs,
             visibility: Visibility::Public,

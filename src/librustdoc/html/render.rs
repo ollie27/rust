@@ -1616,20 +1616,22 @@ impl Context {
 
         let mut path = String::new();
 
+        let source = item.source.as_ref()?;
+
         // We can safely ignore synthetic `SourceFile`s.
-        let file = match item.source.filename {
+        let file = match source.file.name {
             FileName::Real(ref path) => path,
             _ => return None,
         };
 
-        let (krate, path) = if item.source.cnum == LOCAL_CRATE {
+        let (krate, path) = if source.file.cnum == LOCAL_CRATE {
             if let Some(path) = self.shared.local_sources.get(file) {
                 (&self.shared.layout.krate, path)
             } else {
                 return None;
             }
         } else {
-            let (krate, src_root) = match *self.cache.extern_locations.get(&item.source.cnum)? {
+            let (krate, src_root) = match *self.cache.extern_locations.get(&source.file.cnum)? {
                 (ref name, ref src, Local) => (name, src),
                 (ref name, ref src, Remote(ref s)) => {
                     root = s.to_string();
@@ -1648,10 +1650,10 @@ impl Context {
             (krate, &path)
         };
 
-        let lines = if item.source.loline == item.source.hiline {
-            item.source.loline.to_string()
+        let lines = if source.loline == source.hiline {
+            source.loline.to_string()
         } else {
-            format!("{}-{}", item.source.loline, item.source.hiline)
+            format!("{}-{}", source.loline, source.hiline)
         };
         Some(format!(
             "{root}src/{krate}/{path}#{lines}",
