@@ -5,12 +5,12 @@ use rustc_data_structures::fx::FxHashMap;
 use rustc_span::symbol::{sym, Symbol};
 use serde::Serialize;
 
-use crate::clean::types::GetDefId;
 use crate::clean::{self, AttributesExt};
+use crate::clean::utils::get_all_types;
 use crate::formats::cache::Cache;
 use crate::formats::item_type::ItemType;
 use crate::html::markdown::short_markdown_summary;
-use crate::html::render::{Generic, IndexItem, IndexItemFunctionType, RenderType, TypeWithKind};
+use crate::html::render::{IndexItem, IndexItemFunctionType, TypeWithKind};
 
 /// Indicates where an external crate can be found.
 crate enum ExternalLocation {
@@ -78,7 +78,7 @@ crate fn build_index(krate: &clean::Crate, cache: &mut Cache) -> String {
                 desc: item.doc_value().map_or_else(String::new, |s| short_markdown_summary(&s)),
                 parent: Some(did),
                 parent_idx: None,
-                search_type: get_index_search_type(&item, Some(cache)),
+                search_type: get_index_search_type(&item),
             });
             for alias in item.attrs.get_doc_aliases() {
                 cache
@@ -164,73 +164,48 @@ crate fn build_index(krate: &clean::Crate, cache: &mut Cache) -> String {
     )
 }
 
-crate fn get_index_search_type(
-    item: &clean::Item,
-    cache: Option<&Cache>,
-) -> Option<IndexItemFunctionType> {
-    let (all_types, ret_types) = match *item.kind {
-        clean::FunctionItem(ref f) => (&f.all_types, &f.ret_types),
-        clean::MethodItem(ref m, _) => (&m.all_types, &m.ret_types),
-        clean::TyMethodItem(ref m) => (&m.all_types, &m.ret_types),
+crate fn get_index_search_type(item: &clean::Item) -> Option<IndexItemFunctionType> {
+    let (decl, generics) = match *item.kind {
+        clean::FunctionItem(ref f) => (&f.decl, &f.generics),
+        clean::MethodItem(ref m, _) => (&m.decl, &m.generics),
+        clean::TyMethodItem(ref m) => (&m.decl, &m.generics),
         _ => return None,
     };
 
-    let inputs = all_types
-        .iter()
-        .map(|(ty, kind)| TypeWithKind::from((get_index_type(&ty, &cache), *kind)))
-        .filter(|a| a.ty.name.is_some())
+    let (inputs, output) = get_all_types(generics, decl);
+
+    let inputs = inputs
+        .into_iter()
+        .filter_map(|ty| {
+            let name = get_index_type_name(ty)?.as_str().to_ascii_lowercase();
+            Some(TypeWithKind { name, kind: ItemType::from(ty) })
+        })
         .collect();
-    let output = ret_types
-        .iter()
-        .map(|(ty, kind)| TypeWithKind::from((get_index_type(&ty, &cache), *kind)))
-        .filter(|a| a.ty.name.is_some())
-        .collect::<Vec<_>>();
+
+    let output: Vec<TypeWithKind> = output
+        .into_iter()
+        .filter_map(|ty| {
+            let name = get_index_type_name(ty)?.as_str().to_ascii_lowercase();
+            Some(TypeWithKind { name, kind: ItemType::from(ty) })
+        })
+        .collect();
     let output = if output.is_empty() { None } else { Some(output) };
 
     Some(IndexItemFunctionType { inputs, output })
 }
 
-fn get_index_type(clean_type: &clean::Type, cache: &Option<&Cache>) -> RenderType {
-    RenderType {
-        ty: cache.map_or_else(|| clean_type.def_id(), |cache| clean_type.def_id_full(cache)),
-        idx: None,
-        name: get_index_type_name(clean_type, true).map(|s| s.as_str().to_ascii_lowercase()),
-        generics: get_generics(clean_type, cache),
-    }
-}
-
-fn get_index_type_name(clean_type: &clean::Type, accept_generic: bool) -> Option<Symbol> {
+fn get_index_type_name(clean_type: &clean::Type) -> Option<Symbol> {
     match *clean_type {
         clean::ResolvedPath { ref path, .. } => {
             let segments = &path.segments;
             let path_segment = segments.iter().last().unwrap_or_else(|| {
-                panic!(
-                "get_index_type_name(clean_type: {:?}, accept_generic: {:?}) had length zero path",
-                clean_type, accept_generic
-            )
+                panic!("get_index_type_name(clean_type: {:?}) had length zero path", clean_type)
             });
             Some(path_segment.name)
         }
-        clean::Generic(s) if accept_generic => Some(s),
         clean::Primitive(ref p) => Some(p.as_sym()),
-        clean::BorrowedRef { ref type_, .. } => get_index_type_name(type_, accept_generic),
+        clean::BorrowedRef { ref type_, .. } => get_index_type_name(type_),
         // FIXME: add all from clean::Type.
         _ => None,
     }
-}
-
-fn get_generics(clean_type: &clean::Type, cache: &Option<&Cache>) -> Option<Vec<Generic>> {
-    clean_type.generics().and_then(|types| {
-        let r = types
-            .iter()
-            .filter_map(|t| {
-                get_index_type_name(t, false).map(|name| Generic {
-                    name: name.as_str().to_ascii_lowercase(),
-                    defid: cache.map_or_else(|| t.def_id(), |cache| t.def_id_full(cache)),
-                    idx: None,
-                })
-            })
-            .collect::<Vec<_>>();
-        if r.is_empty() { None } else { Some(r) }
-    })
 }

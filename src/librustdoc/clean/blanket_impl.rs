@@ -122,7 +122,7 @@ impl<'a, 'tcx> BlanketImplFinder<'a, 'tcx> {
                         provided_trait_methods,
                         // FIXME(eddyb) compute both `trait_` and `for_` from
                         // the post-inference `trait_ref`, as it's more accurate.
-                        trait_: Some(trait_ref.clean(self.cx).get_trait_type().unwrap()),
+                        trait_: Some(trait_ref.clean(self.cx).get_trait_type().unwrap().clone()),
                         for_: ty.clean(self.cx),
                         items: self
                             .cx

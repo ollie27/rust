@@ -144,7 +144,7 @@ fn external_generic_args(
 // from Fn<(A, B,), C> to Fn(A, B) -> C
 pub(super) fn external_path(
     cx: &DocContext<'_>,
-    name: Symbol,
+    did: DefId,
     trait_did: Option<DefId>,
     has_self: bool,
     bindings: Vec<TypeBinding>,
@@ -152,9 +152,9 @@ pub(super) fn external_path(
 ) -> Path {
     Path {
         global: false,
-        res: Res::Err,
+        res: Res::Def(cx.tcx.def_kind(did), did),
         segments: vec![PathSegment {
-            name,
+            name: cx.tcx.item_name(did),
             args: external_generic_args(cx, trait_did, has_self, bindings, substs),
         }],
     }
@@ -165,28 +165,10 @@ pub(super) fn external_path(
 /// i.e. `[T, U]` when you have the following bounds: `T: Display, U: Option<T>` will return
 /// `[Display, Option]` (we just returns the list of the types, we don't care about the
 /// wrapped types in here).
-crate fn get_real_types(
-    generics: &Generics,
-    arg: &Type,
-    cx: &DocContext<'_>,
-    recurse: i32,
-) -> FxHashSet<(Type, TypeKind)> {
-    fn insert(res: &mut FxHashSet<(Type, TypeKind)>, cx: &DocContext<'_>, ty: Type) {
-        if let Some(kind) = ty.def_id().map(|did| cx.tcx.def_kind(did).clean(cx)) {
-            res.insert((ty, kind));
-        } else if ty.is_primitive() {
-            // This is a primitive, let's store it as such.
-            res.insert((ty, TypeKind::Primitive));
-        }
-    }
+crate fn get_real_types<'a>(generics: &'a Generics, arg: &'a Type) -> FxHashSet<&'a Type> {
     let mut res = FxHashSet::default();
-    if recurse >= 10 {
-        // FIXME: remove this whole recurse thing when the recursion bug is fixed
-        return res;
-    }
 
-    if arg.is_full_generic() {
-        let arg_s = Symbol::intern(&arg.print(&cx.cache).to_string());
+    if let &Type::Generic(arg_s) = arg {
         if let Some(where_pred) = generics.where_predicates.iter().find(|g| match g {
             WherePredicate::BoundPredicate { ty, .. } => ty.def_id() == arg.def_id(),
             _ => false,
@@ -199,11 +181,11 @@ crate fn get_real_types(
                             continue;
                         }
                         if let Some(ty) = x.get_type() {
-                            let adds = get_real_types(generics, &ty, cx, recurse + 1);
+                            let adds = get_real_types(generics, ty);
                             if !adds.is_empty() {
                                 res.extend(adds);
                             } else if !ty.is_full_generic() {
-                                insert(&mut res, cx, ty);
+                                res.insert(&ty);
                             }
                         }
                     }
@@ -213,26 +195,26 @@ crate fn get_real_types(
         if let Some(bound) = generics.params.iter().find(|g| g.is_type() && g.name == arg_s) {
             for bound in bound.get_bounds().unwrap_or_else(|| &[]) {
                 if let Some(ty) = bound.get_trait_type() {
-                    let adds = get_real_types(generics, &ty, cx, recurse + 1);
+                    let adds = get_real_types(generics, ty);
                     if !adds.is_empty() {
                         res.extend(adds);
                     } else if !ty.is_full_generic() {
-                        insert(&mut res, cx, ty);
+                        res.insert(ty);
                     }
                 }
             }
         }
     } else {
-        insert(&mut res, cx, arg.clone());
+        res.insert(&arg);
         if let Some(gens) = arg.generics() {
             for gen in gens.iter() {
                 if gen.is_full_generic() {
-                    let adds = get_real_types(generics, gen, cx, recurse + 1);
+                    let adds = get_real_types(generics, gen);
                     if !adds.is_empty() {
                         res.extend(adds);
                     }
                 } else {
-                    insert(&mut res, cx, gen.clone());
+                    res.insert(gen);
                 }
             }
         }
@@ -244,35 +226,21 @@ crate fn get_real_types(
 ///
 /// i.e. `fn foo<A: Display, B: Option<A>>(x: u32, y: B)` will return
 /// `[u32, Display, Option]`.
-crate fn get_all_types(
-    generics: &Generics,
-    decl: &FnDecl,
-    cx: &DocContext<'_>,
-) -> (Vec<(Type, TypeKind)>, Vec<(Type, TypeKind)>) {
+crate fn get_all_types<'a>(
+    generics: &'a Generics,
+    decl: &'a FnDecl,
+) -> (Vec<&'a Type>, Vec<&'a Type>) {
     let mut all_types = FxHashSet::default();
     for arg in decl.inputs.values.iter() {
         if arg.type_.is_self_type() {
             continue;
         }
-        let args = get_real_types(generics, &arg.type_, cx, 0);
-        if !args.is_empty() {
-            all_types.extend(args);
-        } else {
-            if let Some(kind) = arg.type_.def_id().map(|did| cx.tcx.def_kind(did).clean(cx)) {
-                all_types.insert((arg.type_.clone(), kind));
-            }
-        }
+        all_types.extend(get_real_types(generics, &arg.type_));
     }
 
     let ret_types = match decl.output {
         FnRetTy::Return(ref return_type) => {
-            let mut ret = get_real_types(generics, &return_type, cx, 0);
-            if ret.is_empty() {
-                if let Some(kind) = return_type.def_id().map(|did| cx.tcx.def_kind(did).clean(cx)) {
-                    ret.insert((return_type.clone(), kind));
-                }
-            }
-            ret.into_iter().collect()
+            get_real_types(generics, &return_type).into_iter().collect()
         }
         _ => Vec::new(),
     };

@@ -316,7 +316,7 @@ impl DocFolder for Cache {
                                 .map_or_else(String::new, |x| short_markdown_summary(&x.as_str())),
                             parent,
                             parent_idx: None,
-                            search_type: get_index_search_type(&item, None),
+                            search_type: get_index_search_type(&item),
                         });
 
                         for alias in item.attrs.get_doc_aliases() {

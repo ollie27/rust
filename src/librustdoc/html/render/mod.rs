@@ -65,7 +65,7 @@ use rustc_span::symbol::{kw, sym, Symbol};
 use serde::ser::SerializeSeq;
 use serde::{Serialize, Serializer};
 
-use crate::clean::{self, AttributesExt, GetDefId, RenderedLink, SelfTy, TypeKind};
+use crate::clean::{self, AttributesExt, GetDefId, RenderedLink, SelfTy};
 use crate::config::{RenderInfo, RenderOptions};
 use crate::docfs::{DocFS, PathError};
 use crate::error::Error;
@@ -238,58 +238,6 @@ impl Serialize for IndexItem {
     }
 }
 
-/// A type used for the search index.
-#[derive(Debug)]
-crate struct RenderType {
-    ty: Option<DefId>,
-    idx: Option<usize>,
-    name: Option<String>,
-    generics: Option<Vec<Generic>>,
-}
-
-impl Serialize for RenderType {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        if let Some(name) = &self.name {
-            let mut seq = serializer.serialize_seq(None)?;
-            if let Some(id) = self.idx {
-                seq.serialize_element(&id)?;
-            } else {
-                seq.serialize_element(&name)?;
-            }
-            if let Some(generics) = &self.generics {
-                seq.serialize_element(&generics)?;
-            }
-            seq.end()
-        } else {
-            serializer.serialize_none()
-        }
-    }
-}
-
-/// A type used for the search index.
-#[derive(Debug)]
-crate struct Generic {
-    name: String,
-    defid: Option<DefId>,
-    idx: Option<usize>,
-}
-
-impl Serialize for Generic {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        if let Some(id) = self.idx {
-            serializer.serialize_some(&id)
-        } else {
-            serializer.serialize_some(&self.name)
-        }
-    }
-}
-
 /// Full type of functions/methods in the search index.
 #[derive(Debug)]
 crate struct IndexItemFunctionType {
@@ -302,38 +250,23 @@ impl Serialize for IndexItemFunctionType {
     where
         S: Serializer,
     {
-        // If we couldn't figure out a type, just write `null`.
-        let mut iter = self.inputs.iter();
-        if match self.output {
-            Some(ref output) => iter.chain(output.iter()).any(|ref i| i.ty.name.is_none()),
-            None => iter.any(|ref i| i.ty.name.is_none()),
-        } {
-            serializer.serialize_none()
-        } else {
-            let mut seq = serializer.serialize_seq(None)?;
-            seq.serialize_element(&self.inputs)?;
-            if let Some(output) = &self.output {
-                if output.len() > 1 {
-                    seq.serialize_element(&output)?;
-                } else {
-                    seq.serialize_element(&output[0])?;
-                }
+        let mut seq = serializer.serialize_seq(None)?;
+        seq.serialize_element(&self.inputs)?;
+        if let Some(output) = &self.output {
+            if output.len() > 1 {
+                seq.serialize_element(&output)?;
+            } else {
+                seq.serialize_element(&output[0])?;
             }
-            seq.end()
         }
+        seq.end()
     }
 }
 
 #[derive(Debug)]
 crate struct TypeWithKind {
-    ty: RenderType,
-    kind: TypeKind,
-}
-
-impl From<(RenderType, TypeKind)> for TypeWithKind {
-    fn from(x: (RenderType, TypeKind)) -> TypeWithKind {
-        TypeWithKind { ty: x.0, kind: x.1 }
-    }
+    name: String, // TODO: make &str
+    kind: ItemType,
 }
 
 impl Serialize for TypeWithKind {
@@ -342,9 +275,8 @@ impl Serialize for TypeWithKind {
         S: Serializer,
     {
         let mut seq = serializer.serialize_seq(None)?;
-        seq.serialize_element(&self.ty.name)?;
-        let x: ItemType = self.kind.into();
-        seq.serialize_element(&x)?;
+        seq.serialize_element(&self.name)?;
+        seq.serialize_element(&self.kind)?;
         seq.end()
     }
 }
