@@ -942,7 +942,7 @@ impl GenericBound {
     crate fn maybe_sized(cx: &DocContext<'_>) -> GenericBound {
         let did = cx.tcx.require_lang_item(LangItem::Sized, None);
         let empty = cx.tcx.intern_substs(&[]);
-        let path = external_path(cx, cx.tcx.item_name(did), Some(did), false, vec![], empty);
+        let path = external_path(cx, did, Some(did), false, vec![], empty);
         inline::record_extern_fqn(cx, did, TypeKind::Trait);
         GenericBound::TraitBound(
             PolyTrait {
@@ -970,9 +970,9 @@ impl GenericBound {
         None
     }
 
-    crate fn get_trait_type(&self) -> Option<Type> {
-        if let GenericBound::TraitBound(PolyTrait { ref trait_, .. }, _) = *self {
-            Some(trait_.clone())
+    crate fn get_trait_type(&self) -> Option<&Type> {
+        if let GenericBound::TraitBound(PolyTrait { trait_, .. }, _) = self {
+            Some(trait_)
         } else {
             None
         }
@@ -1036,10 +1036,10 @@ impl GenericParamDefKind {
     // FIXME(eddyb) this either returns the default of a type parameter, or the
     // type of a `const` parameter. It seems that the intention is to *visit*
     // any embedded types, but `get_type` seems to be the wrong name for that.
-    crate fn get_type(&self) -> Option<Type> {
+    crate fn get_type(&self) -> Option<&Type> {
         match self {
-            GenericParamDefKind::Type { default, .. } => default.clone(),
-            GenericParamDefKind::Const { ty, .. } => Some(ty.clone()),
+            GenericParamDefKind::Type { default, .. } => default.as_ref(),
+            GenericParamDefKind::Const { ty, .. } => Some(ty),
             GenericParamDefKind::Lifetime => None,
         }
     }
@@ -1063,7 +1063,7 @@ impl GenericParamDef {
         self.kind.is_type()
     }
 
-    crate fn get_type(&self) -> Option<Type> {
+    crate fn get_type(&self) -> Option<&Type> {
         self.kind.get_type()
     }
 
@@ -1299,7 +1299,6 @@ crate enum TypeKind {
     Attr,
     Derive,
     TraitAlias,
-    Primitive,
 }
 
 impl From<hir::def::DefKind> for TypeKind {
@@ -1437,16 +1436,6 @@ impl Type {
 
     crate fn is_full_generic(&self) -> bool {
         matches!(self, Type::Generic(_))
-    }
-
-    crate fn is_primitive(&self) -> bool {
-        match self {
-            Self::Primitive(_) => true,
-            Self::BorrowedRef { ref type_, .. } | Self::RawPointer(_, ref type_) => {
-                type_.is_primitive()
-            }
-            _ => false,
-        }
     }
 
     crate fn projection(&self) -> Option<(&Type, DefId, Symbol)> {

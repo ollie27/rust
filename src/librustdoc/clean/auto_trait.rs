@@ -127,7 +127,7 @@ impl<'a, 'tcx> AutoTraitFinder<'a, 'tcx> {
                         unsafety: hir::Unsafety::Normal,
                         generics: new_generics,
                         provided_trait_methods: Default::default(),
-                        trait_: Some(trait_ref.clean(self.cx).get_trait_type().unwrap()),
+                        trait_: Some(trait_ref.clean(self.cx).get_trait_type().unwrap().clone()),
                         for_: ty.clean(self.cx),
                         items: Vec::new(),
                         negative_polarity,

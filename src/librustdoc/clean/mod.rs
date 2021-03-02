@@ -288,7 +288,7 @@ impl Clean<Type> for (ty::TraitRef<'_>, &[TypeBinding]) {
         inline::record_extern_fqn(cx, trait_ref.def_id, TypeKind::Trait);
         let path = external_path(
             cx,
-            cx.tcx.item_name(trait_ref.def_id),
+            trait_ref.def_id,
             Some(trait_ref.def_id),
             true,
             bounds.to_vec(),
@@ -1583,19 +1583,12 @@ impl<'tcx> Clean<Type> for Ty<'tcx> {
                     AdtKind::Enum => TypeKind::Enum,
                 };
                 inline::record_extern_fqn(cx, did, kind);
-                let path = external_path(cx, cx.tcx.item_name(did), None, false, vec![], substs);
+                let path = external_path(cx, did, None, false, vec![], substs);
                 ResolvedPath { path, param_names: None, did, is_generic: false }
             }
             ty::Foreign(did) => {
                 inline::record_extern_fqn(cx, did, TypeKind::Foreign);
-                let path = external_path(
-                    cx,
-                    cx.tcx.item_name(did),
-                    None,
-                    false,
-                    vec![],
-                    InternalSubsts::empty(),
-                );
+                let path = external_path(cx, did, None, false, vec![], InternalSubsts::empty());
                 ResolvedPath { path, param_names: None, did, is_generic: false }
             }
             ty::Dynamic(ref obj, ref reg) => {
@@ -1620,8 +1613,7 @@ impl<'tcx> Clean<Type> for Ty<'tcx> {
                 }
                 for did in dids {
                     let empty = cx.tcx.intern_substs(&[]);
-                    let path =
-                        external_path(cx, cx.tcx.item_name(did), Some(did), false, vec![], empty);
+                    let path = external_path(cx, did, Some(did), false, vec![], empty);
                     inline::record_extern_fqn(cx, did, TypeKind::Trait);
                     let bound = GenericBound::TraitBound(
                         PolyTrait {
@@ -1646,8 +1638,7 @@ impl<'tcx> Clean<Type> for Ty<'tcx> {
                     });
                 }
 
-                let path =
-                    external_path(cx, cx.tcx.item_name(did), Some(did), false, bindings, substs);
+                let path = external_path(cx, did, Some(did), false, bindings, substs);
                 ResolvedPath { path, param_names: Some(param_names), did, is_generic: false }
             }
             ty::Tuple(ref t) => {

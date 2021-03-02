@@ -2,18 +2,17 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use rustc_data_structures::fx::{FxHashMap, FxHashSet};
-use rustc_middle::ty::TyCtxt;
 use rustc_span::symbol::{sym, Symbol};
 use serde::Serialize;
 
 use crate::clean::types::{
-    FnDecl, FnRetTy, GenericBound, Generics, GetDefId, Type, TypeKind, WherePredicate,
+    FnDecl, FnRetTy, GenericBound, Generics, GetDefId, Type, WherePredicate,
 };
 use crate::clean::{self, AttributesExt};
 use crate::formats::cache::Cache;
 use crate::formats::item_type::ItemType;
 use crate::html::markdown::short_markdown_summary;
-use crate::html::render::{Generic, IndexItem, IndexItemFunctionType, RenderType, TypeWithKind};
+use crate::html::render::{IndexItem, IndexItemFunctionType, TypeWithKind};
 
 /// Indicates where an external crate can be found.
 crate enum ExternalLocation {
@@ -65,7 +64,7 @@ crate fn extern_location(
 }
 
 /// Builds the search index from the collected metadata
-crate fn build_index<'tcx>(krate: &clean::Crate, cache: &mut Cache, tcx: TyCtxt<'tcx>) -> String {
+crate fn build_index(krate: &clean::Crate, cache: &mut Cache) -> String {
     let mut defid_to_pathid = FxHashMap::default();
     let mut crate_items = Vec::with_capacity(cache.search_index.len());
     let mut crate_paths = vec![];
@@ -81,7 +80,7 @@ crate fn build_index<'tcx>(krate: &clean::Crate, cache: &mut Cache, tcx: TyCtxt<
                 desc: item.doc_value().map_or_else(String::new, |s| short_markdown_summary(&s)),
                 parent: Some(did),
                 parent_idx: None,
-                search_type: get_index_search_type(&item, cache, tcx),
+                search_type: get_index_search_type(&item),
             });
             for alias in item.attrs.get_doc_aliases() {
                 cache
@@ -167,57 +166,46 @@ crate fn build_index<'tcx>(krate: &clean::Crate, cache: &mut Cache, tcx: TyCtxt<
     )
 }
 
-crate fn get_index_search_type<'tcx>(
-    item: &clean::Item,
-    cache: &Cache,
-    tcx: TyCtxt<'tcx>,
-) -> Option<IndexItemFunctionType> {
-    let (all_types, ret_types) = match *item.kind {
-        clean::FunctionItem(ref f) => get_all_types(&f.generics, &f.decl, tcx),
-        clean::MethodItem(ref m, _) => get_all_types(&m.generics, &m.decl, tcx),
-        clean::TyMethodItem(ref m) => get_all_types(&m.generics, &m.decl, tcx),
+crate fn get_index_search_type(item: &clean::Item) -> Option<IndexItemFunctionType> {
+    let (generics, decl) = match *item.kind {
+        clean::FunctionItem(ref f) => (&f.generics, &f.decl),
+        clean::MethodItem(ref m, _) => (&m.generics, &m.decl),
+        clean::TyMethodItem(ref m) => (&m.generics, &m.decl),
         _ => return None,
     };
 
-    let inputs = all_types
-        .iter()
-        .map(|(ty, kind)| TypeWithKind::from((get_index_type(&ty, &cache), *kind)))
-        .filter(|a| a.ty.name.is_some())
+    let (inputs, output) = get_all_types(generics, decl);
+
+    let inputs = inputs
+        .into_iter()
+        .filter_map(|ty| {
+            let name = get_index_type_name(ty)?.as_str().to_ascii_lowercase();
+            Some(TypeWithKind { name, kind: ItemType::from(ty) })
+        })
         .collect();
-    let output = ret_types
-        .iter()
-        .map(|(ty, kind)| TypeWithKind::from((get_index_type(&ty, &cache), *kind)))
-        .filter(|a| a.ty.name.is_some())
-        .collect::<Vec<_>>();
-    let output = if output.is_empty() { None } else { Some(output) };
+
+    let output = output
+        .into_iter()
+        .filter_map(|ty| {
+            let name = get_index_type_name(ty)?.as_str().to_ascii_lowercase();
+            Some(TypeWithKind { name, kind: ItemType::from(ty) })
+        })
+        .collect();
 
     Some(IndexItemFunctionType { inputs, output })
 }
 
-fn get_index_type(clean_type: &clean::Type, cache: &Cache) -> RenderType {
-    RenderType {
-        ty: clean_type.def_id_full(cache),
-        idx: None,
-        name: get_index_type_name(clean_type, true).map(|s| s.as_str().to_ascii_lowercase()),
-        generics: get_generics(clean_type, cache),
-    }
-}
-
-fn get_index_type_name(clean_type: &clean::Type, accept_generic: bool) -> Option<Symbol> {
+fn get_index_type_name(clean_type: &clean::Type) -> Option<Symbol> {
     match *clean_type {
         clean::ResolvedPath { ref path, .. } => {
             let segments = &path.segments;
             let path_segment = segments.iter().last().unwrap_or_else(|| {
-                panic!(
-                "get_index_type_name(clean_type: {:?}, accept_generic: {:?}) had length zero path",
-                clean_type, accept_generic
-            )
+                panic!("get_index_type_name(clean_type: {:?}) had length zero path", clean_type)
             });
             Some(path_segment.name)
         }
-        clean::Generic(s) if accept_generic => Some(s),
         clean::Primitive(ref p) => Some(p.as_sym()),
-        clean::BorrowedRef { ref type_, .. } => get_index_type_name(type_, accept_generic),
+        clean::BorrowedRef { ref type_, .. } => get_index_type_name(type_),
         clean::Generic(_)
         | clean::BareFunction(_)
         | clean::Tuple(_)
@@ -231,52 +219,21 @@ fn get_index_type_name(clean_type: &clean::Type, accept_generic: bool) -> Option
     }
 }
 
-fn get_generics(clean_type: &clean::Type, cache: &Cache) -> Option<Vec<Generic>> {
-    clean_type.generics().and_then(|types| {
-        let r = types
-            .iter()
-            .filter_map(|t| {
-                get_index_type_name(t, false).map(|name| Generic {
-                    name: name.as_str().to_ascii_lowercase(),
-                    defid: t.def_id_full(cache),
-                    idx: None,
-                })
-            })
-            .collect::<Vec<_>>();
-        if r.is_empty() { None } else { Some(r) }
-    })
-}
-
 /// The point of this function is to replace bounds with types.
 ///
 /// i.e. `[T, U]` when you have the following bounds: `T: Display, U: Option<T>` will return
 /// `[Display, Option]` (we just returns the list of the types, we don't care about the
 /// wrapped types in here).
-crate fn get_real_types<'tcx>(
-    generics: &Generics,
-    arg: &Type,
-    tcx: TyCtxt<'tcx>,
+fn get_real_types<'a>(
+    generics: &'a Generics,
+    arg: &'a Type,
     recurse: i32,
-    res: &mut FxHashSet<(Type, TypeKind)>,
-) -> usize {
-    fn insert(res: &mut FxHashSet<(Type, TypeKind)>, tcx: TyCtxt<'_>, ty: Type) -> usize {
-        if let Some(kind) = ty.def_id().map(|did| tcx.def_kind(did).into()) {
-            res.insert((ty, kind));
-            1
-        } else if ty.is_primitive() {
-            // This is a primitive, let's store it as such.
-            res.insert((ty, TypeKind::Primitive));
-            1
-        } else {
-            0
-        }
-    }
-
+    res: &mut FxHashSet<&'a Type>,
+) {
     if recurse >= 10 {
         // FIXME: remove this whole recurse thing when the recursion bug is fixed
-        return 0;
+        return;
     }
-    let mut nb_added = 0;
 
     if let &Type::Generic(arg_s) = arg {
         if let Some(where_pred) = generics.where_predicates.iter().find(|g| match g {
@@ -291,11 +248,7 @@ crate fn get_real_types<'tcx>(
                             continue;
                         }
                         if let Some(ty) = x.get_type() {
-                            let adds = get_real_types(generics, &ty, tcx, recurse + 1, res);
-                            nb_added += adds;
-                            if adds == 0 && !ty.is_full_generic() {
-                                nb_added += insert(res, tcx, ty);
-                            }
+                            get_real_types(generics, &ty, recurse + 1, res);
                         }
                     }
                 }
@@ -304,63 +257,41 @@ crate fn get_real_types<'tcx>(
         if let Some(bound) = generics.params.iter().find(|g| g.is_type() && g.name == arg_s) {
             for bound in bound.get_bounds().unwrap_or(&[]) {
                 if let Some(ty) = bound.get_trait_type() {
-                    let adds = get_real_types(generics, &ty, tcx, recurse + 1, res);
-                    nb_added += adds;
-                    if adds == 0 && !ty.is_full_generic() {
-                        nb_added += insert(res, tcx, ty);
-                    }
+                    get_real_types(generics, &ty, recurse + 1, res);
                 }
             }
         }
     } else {
-        nb_added += insert(res, tcx, arg.clone());
+        res.insert(arg);
         if let Some(gens) = arg.generics() {
             for gen in gens.iter() {
                 if gen.is_full_generic() {
-                    nb_added += get_real_types(generics, gen, tcx, recurse + 1, res);
+                    get_real_types(generics, gen, recurse + 1, res);
                 } else {
-                    nb_added += insert(res, tcx, (*gen).clone());
+                    res.insert(gen);
                 }
             }
         }
     }
-    nb_added
 }
 
 /// Return the full list of types when bounds have been resolved.
 ///
 /// i.e. `fn foo<A: Display, B: Option<A>>(x: u32, y: B)` will return
 /// `[u32, Display, Option]`.
-crate fn get_all_types<'tcx>(
-    generics: &Generics,
-    decl: &FnDecl,
-    tcx: TyCtxt<'tcx>,
-) -> (Vec<(Type, TypeKind)>, Vec<(Type, TypeKind)>) {
+fn get_all_types<'a>(generics: &'a Generics, decl: &'a FnDecl) -> (Vec<&'a Type>, Vec<&'a Type>) {
     let mut all_types = FxHashSet::default();
     for arg in decl.inputs.values.iter() {
         if arg.type_.is_self_type() {
             continue;
         }
-        let mut args = FxHashSet::default();
-        get_real_types(generics, &arg.type_, tcx, 0, &mut args);
-        if !args.is_empty() {
-            all_types.extend(args);
-        } else {
-            if let Some(kind) = arg.type_.def_id().map(|did| tcx.def_kind(did).into()) {
-                all_types.insert((arg.type_.clone(), kind));
-            }
-        }
+        get_real_types(generics, &arg.type_, 0, &mut all_types);
     }
 
     let ret_types = match decl.output {
         FnRetTy::Return(ref return_type) => {
             let mut ret = FxHashSet::default();
-            get_real_types(generics, &return_type, tcx, 0, &mut ret);
-            if ret.is_empty() {
-                if let Some(kind) = return_type.def_id().map(|did| tcx.def_kind(did).into()) {
-                    ret.insert((return_type.clone(), kind));
-                }
-            }
+            get_real_types(generics, &return_type, 0, &mut ret);
             ret.into_iter().collect()
         }
         _ => Vec::new(),

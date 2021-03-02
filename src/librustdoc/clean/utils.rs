@@ -143,7 +143,7 @@ fn external_generic_args(
 // from Fn<(A, B,), C> to Fn(A, B) -> C
 pub(super) fn external_path(
     cx: &DocContext<'_>,
-    name: Symbol,
+    did: DefId,
     trait_did: Option<DefId>,
     has_self: bool,
     bindings: Vec<TypeBinding>,
@@ -151,9 +151,9 @@ pub(super) fn external_path(
 ) -> Path {
     Path {
         global: false,
-        res: Res::Err,
+        res: Res::Def(cx.tcx.def_kind(did), did),
         segments: vec![PathSegment {
-            name,
+            name: cx.tcx.item_name(did),
             args: external_generic_args(cx, trait_did, has_self, bindings, substs),
         }],
     }

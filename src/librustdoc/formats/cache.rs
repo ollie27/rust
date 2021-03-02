@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use rustc_data_structures::fx::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::{CrateNum, DefId, CRATE_DEF_INDEX};
 use rustc_middle::middle::privacy::AccessLevels;
-use rustc_middle::ty::TyCtxt;
 use rustc_span::source_map::FileName;
 use rustc_span::Symbol;
 
@@ -123,20 +122,17 @@ crate struct Cache {
 }
 
 /// This struct is used to wrap the `cache` and `tcx` in order to run `DocFolder`.
-struct CacheBuilder<'a, 'tcx> {
+struct CacheBuilder<'a> {
     cache: &'a mut Cache,
-    empty_cache: Cache,
-    tcx: TyCtxt<'tcx>,
 }
 
 impl Cache {
-    crate fn from_krate<'tcx>(
+    crate fn from_krate(
         render_info: RenderInfo,
         document_private: bool,
         extern_html_root_urls: &BTreeMap<String, String>,
         dst: &Path,
         mut krate: clean::Crate,
-        tcx: TyCtxt<'tcx>,
     ) -> (clean::Crate, Cache) {
         // Crawl the crate to build various caches used for the output
         let RenderInfo {
@@ -203,8 +199,7 @@ impl Cache {
 
         cache.stack.push(krate.name.to_string());
 
-        krate = CacheBuilder { tcx, cache: &mut cache, empty_cache: Cache::default() }
-            .fold_crate(krate);
+        krate = CacheBuilder { cache: &mut cache }.fold_crate(krate);
 
         for (trait_did, dids, impl_) in cache.orphan_trait_impls.drain(..) {
             if cache.traits.contains_key(&trait_did) {
@@ -218,7 +213,7 @@ impl Cache {
     }
 }
 
-impl<'a, 'tcx> DocFolder for CacheBuilder<'a, 'tcx> {
+impl<'a> DocFolder for CacheBuilder<'a> {
     fn fold_item(&mut self, item: clean::Item) -> Option<clean::Item> {
         if item.def_id.is_local() {
             debug!("folding {} \"{:?}\", id {:?}", item.type_(), item.name, item.def_id);
@@ -327,7 +322,7 @@ impl<'a, 'tcx> DocFolder for CacheBuilder<'a, 'tcx> {
                                 .map_or_else(String::new, |x| short_markdown_summary(&x.as_str())),
                             parent,
                             parent_idx: None,
-                            search_type: get_index_search_type(&item, &self.empty_cache, self.tcx),
+                            search_type: get_index_search_type(&item),
                         });
 
                         for alias in item.attrs.get_doc_aliases() {
